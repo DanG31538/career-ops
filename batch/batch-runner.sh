@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# career-ops batch runner — standalone orchestrator for claude -p workers
-# Reads batch-input.tsv, delegates each offer to a claude -p worker,
+# career-ops batch runner — standalone orchestrator for llm-eval.mjs workers
+# Reads batch-input.tsv, delegates each offer to a `node llm-eval.mjs` worker,
 # tracks state in batch-state.tsv for resumability.
 #
-# NOTE: This script is Claude Code-specific. It uses claude -p with
-# --dangerously-skip-permissions and --append-system-prompt-file flags
-# that are not available in other CLIs. Multi-CLI support is out of scope
-# for now — contributions welcome.
+# NOTE: This was originally a Claude-Code-specific script (`claude -p`).
+# Phase 2 of the self-hosted fork swaps that out for llm-eval.mjs, which
+# calls any OpenAI-compatible provider (OpenRouter, Groq, DeepInfra, OpenAI)
+# based on .env config. The worker assembles its own system prompt internally
+# (modes/_shared.md + modes/oferta.md + cv.md + profile), so the old
+# sed-substitution of batch-prompt.md is gone.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -33,12 +35,13 @@ RETRY_FAILED=false
 START_FROM=0
 MAX_RETRIES=2
 MIN_SCORE=0
-MODEL=""  # empty = let claude -p use the Claude Max default
+MODEL=""  # empty = use LLM_MODEL from .env (or provider preset default)
 
 usage() {
   cat <<'USAGE'
-career-ops batch runner — process job offers in batch via claude -p workers
-Uses your default Claude model (Claude Max subscription).
+career-ops batch runner — process job offers in batch via llm-eval.mjs workers
+Uses whatever provider is configured in .env (LLM_PROVIDER / LLM_BASE_URL /
+LLM_API_KEY / LLM_MODEL). Defaults to OpenRouter + Llama 3.3 70B.
 
 Usage: batch-runner.sh [OPTIONS]
 
@@ -49,9 +52,9 @@ Options:
   --start-from N       Start from offer ID N (skip earlier IDs)
   --max-retries N      Max retry attempts per offer (default: 2)
   --min-score N        Skip PDF/tracker for offers scoring below N (default: 0 = off)
-  --model NAME         Claude model passed to `claude -p --model` (default:
-                       unset = Claude Max default). Use a cheaper model for
-                       large batches, e.g. `--model claude-sonnet-4-6`.
+  --model NAME         Override LLM_MODEL from .env for this run.
+                       Examples: meta-llama/llama-3.3-70b-instruct,
+                       llama-3.1-8b-instant, gpt-4o-mini.
   -h, --help           Show this help
 
 Files:
@@ -129,8 +132,21 @@ check_prerequisites() {
     exit 1
   fi
 
-  if ! command -v claude &>/dev/null; then
-    echo "ERROR: 'claude' CLI not found in PATH."
+  if ! command -v node &>/dev/null; then
+    echo "ERROR: 'node' not found in PATH. Install Node.js >=18 and re-run."
+    exit 1
+  fi
+
+  if [[ ! -f "$PROJECT_DIR/llm-eval.mjs" ]]; then
+    echo "ERROR: $PROJECT_DIR/llm-eval.mjs not found."
+    echo "       This file is required for Phase 2 (Groq backend)."
+    exit 1
+  fi
+
+  if [[ -z "${LLM_API_KEY:-}" ]] && [[ -z "${OPENROUTER_API_KEY:-}" ]] && [[ -z "${GROQ_API_KEY:-}" ]] && [[ ! -f "$PROJECT_DIR/.env" ]]; then
+    echo "ERROR: No LLM API key set and no .env file found at $PROJECT_DIR/.env"
+    echo "       Set LLM_API_KEY (or OPENROUTER_API_KEY / GROQ_API_KEY) in .env"
+    echo "       See $PROJECT_DIR/.env.example for provider presets."
     exit 1
   fi
 
@@ -330,50 +346,27 @@ process_offer() {
 
   echo "--- Processing offer #$id: $url (report $report_num, attempt $((retries + 1)))"
 
-  # Build the prompt with placeholders replaced
-  local prompt
-  prompt="Procesa esta oferta de empleo. Ejecuta el pipeline completo: evaluación A-F + report .md + PDF + tracker line."
-  prompt="$prompt URL: $url"
-  prompt="$prompt JD file: $jd_file"
-  prompt="$prompt Report number: $report_num"
-  prompt="$prompt Date: $date"
-  prompt="$prompt Batch ID: $id"
-
   local log_file="$LOGS_DIR/${report_num}-${id}.log"
 
-  # Prepare system prompt with placeholders resolved
-  local resolved_prompt="$BATCH_DIR/.resolved-prompt-${id}.md"
-  # Escape sed delimiter characters in variables to prevent substitution breakage
-  local esc_url esc_jd_file esc_report_num esc_date esc_id
-  esc_url="${url//\\/\\\\}"
-  esc_url="${esc_url//|/\\|}"
-  esc_jd_file="${jd_file//\\/\\\\}"
-  esc_jd_file="${esc_jd_file//|/\\|}"
-  esc_report_num="${report_num//|/\\|}"
-  esc_date="${date//|/\\|}"
-  esc_id="${id//|/\\|}"
-  sed \
-    -e "s|{{URL}}|${esc_url}|g" \
-    -e "s|{{JD_FILE}}|${esc_jd_file}|g" \
-    -e "s|{{REPORT_NUM}}|${esc_report_num}|g" \
-    -e "s|{{DATE}}|${esc_date}|g" \
-    -e "s|{{ID}}|${esc_id}|g" \
-    "$PROMPT_FILE" > "$resolved_prompt"
-
-  # Launch claude -p worker.
-  # Model defaults to the Claude Max subscription default unless --model was
-  # passed. Building the command in an array keeps quoting safe regardless.
-  local -a claude_args=(-p --dangerously-skip-permissions)
+  # Launch llm-eval.mjs worker (Phase 2: swapped from `claude -p` to any
+  # OpenAI-compatible provider). llm-eval.mjs assembles its own system prompt
+  # internally from modes/_shared.md + modes/oferta.md + cv.md + profile, so
+  # we no longer need to sed-substitute batch-prompt.md. URL/report-num/date/id
+  # are passed as CLI flags and end up in the report header.
+  # Model defaults to LLM_MODEL from .env unless --model was passed.
+  local -a llm_args=(
+    --file       "$jd_file"
+    --report-num "$report_num"
+    --id         "$id"
+    --url        "$url"
+    --date       "$date"
+  )
   if [[ -n "$MODEL" ]]; then
-    claude_args+=(--model "$MODEL")
+    llm_args+=(--model "$MODEL")
   fi
-  claude_args+=(--append-system-prompt-file "$resolved_prompt" "$prompt")
 
   local exit_code=0
-  claude "${claude_args[@]}" > "$log_file" 2>&1 || exit_code=$?
-
-  # Cleanup resolved prompt
-  rm -f "$resolved_prompt"
+  node "$PROJECT_DIR/llm-eval.mjs" "${llm_args[@]}" > "$log_file" 2>&1 || exit_code=$?
 
   local completed_at
   completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)

@@ -15,7 +15,8 @@
     "rollback": "node update-system.mjs rollback",
     "liveness": "node check-liveness.mjs",
     "scan": "node scan.mjs",
-    "gemini:eval": "node gemini-eval.mjs"
+    "gemini:eval": "node gemini-eval.mjs",
+    "llm:eval": "node llm-eval.mjs"
   },
   "keywords": [
     "ai",
@@ -35,6 +36,7 @@
     "@google/generative-ai": "^0.24.1",
     "dotenv": "^17.0.0",
     "js-yaml": "^4.1.1",
+    "openai": "^4.73.0",
     "playwright": "^1.58.1"
   }
 }

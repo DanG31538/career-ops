@@ -15,6 +15,7 @@
 - [x] .env.example committed to repo
 - [x] .gitignore verified — .env properly excluded
 - [x] npm install run locally — 6 packages, 0 vulnerabilities
+- [x] OpenRouter account created, API key generated (Groq Dev Tier was unavailable)
 
 ## Phase 1 — Droplet Provisioning ✅ COMPLETE
 - [x] SSH key generated on desktop (ed25519)
@@ -34,20 +35,33 @@
 - [x] Droplet rebooted, new kernel confirmed
 - [x] SSH confirmed as jobops user
 
-## Phase 2 — Swap LLM Backend to Groq 🔲 IN PROGRESS
-- [x] groq-eval.mjs created (~310 lines)
-  - [x] Interactive mode: node groq-eval.mjs "JD text"
-  - [x] Batch mode: node groq-eval.mjs --file ... --report-num ... --id ... 
-  - [x] Uses openai npm package pointed at api.groq.com/openai/v1
+## Phase 2 — Swap LLM Backend 🔲 IN PROGRESS
+- [x] llm-eval.mjs created (provider-agnostic, ~430 lines)
+  - [x] Interactive mode: `node llm-eval.mjs "JD text"` or `--file <path>`
+  - [x] Batch mode: `--file ... --report-num ... --id ... --url ... --date ...`
+  - [x] Uses openai npm package with configurable baseURL
   - [x] Writes report to reports/ and tracker TSV to batch/tracker-additions/
-- [x] batch-runner.sh updated — replaces claude -p with node groq-eval.mjs
-- [x] package.json updated — openai dependency added, groq:eval script added
-- [ ] npm install run locally after package.json update
-- [ ] groq-eval.mjs tested locally with dummy JD
-- [ ] groq-eval.mjs tested with real job listing URL
-- [ ] scan.mjs rewritten — standalone Groq + Playwright, no Claude Code runtime
+  - [x] Reads LLM_* env vars; falls back to OPENROUTER_API_KEY → GROQ_API_KEY
+  - [x] Provider presets for OpenRouter, Groq, DeepInfra, OpenAI baked in
+  - [x] `--max-tokens` CLI flag (default 4096, configurable via LLM_MAX_TOKENS)
+- [x] batch/batch-runner.sh updated — calls `node llm-eval.mjs`, provider-agnostic
+- [x] package.json updated — openai dependency, `llm:eval` script
+- [x] .env.example updated — LLM_* schema + provider preset blocks
+- [x] .env locally updated — LLM_PROVIDER=openrouter, key slot empty for Dan to paste
+- [x] npm install run locally after package.json update — 37 packages, 0 vulnerabilities
+- [x] llm-eval.mjs tested locally with dummy JD (hit Groq TPM cap → confirmed error
+      handler works; resolved by migrating to OpenRouter)
+- [x] OpenRouter API key pasted into LLM_API_KEY + OPENROUTER_API_KEY in local .env
+- [x] llm-eval.mjs tested locally with OpenRouter (dummy JD, Acme test) — score 4.2,
+      SCORE_SUMMARY parsed cleanly, report saved as reports/001-acme-2026-05-23.md
+- [ ] **NEXT: Commit + push code changes (llm-eval.mjs, deleted groq-eval.mjs,
+      batch-runner.sh, package.json, .env.example) — only md docs pushed so far**
+- [ ] llm-eval.mjs tested with real job listing URL
+- [ ] scan.mjs rewritten — standalone LLM + Playwright, no Claude Code runtime
+- [ ] git pull on Droplet after all Phase 2 code changes pushed
+- [ ] OpenRouter key added to Droplet .env (in progress — editing nano)
 - [ ] npm install run on Droplet
-- [ ] git pull on Droplet after all Phase 2 changes pushed
+- [ ] llm-eval.mjs test run on Droplet (dummy JD)
 - [ ] batch/batch-runner.sh --dry-run confirmed working on Droplet
 
 ## Phase 3 — Dockerize for Droplet 🔲 PENDING
@@ -134,3 +148,19 @@
 - 2026-05-20: WebSearch/Playwright in batch mode deferred — same constraint as gemini
 - 2026-05-20: scan.mjs rewrite needed — currently depends on Claude Code runtime
 - 2026-05-20: Groq free tier: 14,400 req/day on 70B, 30 req/min — rate limit scan runs
+- 2026-05-23: Initial groq-eval.mjs test hit Groq free-tier TPM cap (12k TPM on
+  llama-3.3-70b-versatile). Confirmed: max_tokens reservation counts against TPM.
+- 2026-05-23: Dropped default max_tokens 8192 → 4096 to fit Groq free tier.
+- 2026-05-23: Groq Dev Tier signup unavailable (high demand). Evaluated alternatives:
+  OpenRouter, DeepInfra, Cerebras, Fireworks, Together AI, OpenAI gpt-4o-mini.
+  Picked OpenRouter — aggregator, one API key, no vendor lock-in, ~5% markup.
+- 2026-05-23: Refactored groq-eval.mjs → llm-eval.mjs (provider-agnostic).
+  - Provider config moves to .env via LLM_PROVIDER / LLM_BASE_URL / LLM_API_KEY
+    / LLM_MODEL / LLM_MAX_TOKENS
+  - Provider presets for OpenRouter (default), Groq, DeepInfra, OpenAI baked in
+  - Switching providers is now a .env edit, no code change
+  - batch-runner.sh, package.json, .env.example all updated
+  - Back-compat: OPENROUTER_API_KEY / GROQ_API_KEY env fallbacks still work
+- 2026-05-23: GROQ_API_KEY kept in .env as fallback. To switch back to Groq, blank
+  out LLM_API_KEY (or set LLM_BASE_URL=https://api.groq.com/openai/v1 and
+  LLM_MODEL=llama-3.3-70b-versatile).

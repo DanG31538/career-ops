@@ -3,23 +3,35 @@
 # CLAUDE.md — Job Application Pipeline Project
 
 ## What This Is
-career-ops has been adapted into a cheap, self-hosted, autonomous job application 
-pipeline. The original repo used Claude Code + Anthropic API (~$200/month). This 
-version replaces that with Groq's free tier LLM API, running on a $6/month 
-DigitalOcean Droplet, interfaced entirely through Discord.
+career-ops has been adapted into a cheap, self-hosted, autonomous job application
+pipeline. The original repo used Claude Code + Anthropic API (~$200/month). This
+version replaces that with a provider-agnostic OpenAI-compatible LLM backend
+(currently OpenRouter), running on a $6/month DigitalOcean Droplet, interfaced
+entirely through Discord.
 
 ## Golden Rule
-The user (Dan) interacts ONLY through Discord. Nothing runs on his local machine 
-except Obsidian (read-only, synced via Syncthing) and Discord. All compute happens 
+The user (Dan) interacts ONLY through Discord. Nothing runs on his local machine
+except Obsidian (read-only, synced via Syncthing) and Discord. All compute happens
 on the Droplet.
 
 ## Stack
 - **Hosting:** DigitalOcean Droplet, NYC3, Ubuntu 24.04, $6/month
 - **Runtime:** Docker Compose, restart policy: unless-stopped
-- **LLM:** Groq API, OpenAI-compatible endpoint: api.groq.com/openai/v1
+- **LLM:** Provider-agnostic via OpenAI-compatible API. Switching providers is a
+  `.env` change, not a code change. Active provider configured via `LLM_PROVIDER`,
+  `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` in `.env`.
+- **Current provider:** OpenRouter (`https://openrouter.ai/api/v1`).
+  - Reason: Groq Dev Tier was unavailable due to high demand at switch time.
+  - OpenRouter routes to whichever underlying provider is cheapest, ~$0.40-0.80/M
+    tokens for Llama 3.3 70B. Per-eval cost ~$0.008-$0.013.
 - **Model routing:**
-  - Heavy tasks (evaluation, scoring, cover letters): llama-3.3-70b-versatile
-  - Light tasks (form filling, parsing, logging, status updates): llama-3.1-8b-instant
+  - Heavy tasks (evaluation, scoring, cover letters): `meta-llama/llama-3.3-70b-instruct`
+  - Light tasks (form filling, parsing, logging, status updates): swap in
+    `meta-llama/llama-3.1-8b-instruct` or `gpt-4o-mini` via `LLM_MODEL` or `--model` flag
+- **Fallback providers** (preset blocks in `.env.example`):
+  - Groq — free tier 12k TPM (limited but free)
+  - DeepInfra — cheapest direct provider for Llama 3.3 70B
+  - OpenAI — gpt-4o-mini, very cheap and reliable
 - **Interface:** Discord bot (private server)
 - **Tracking:** Obsidian vault (markdown notes, synced Droplet → machines via Syncthing)
 - **Browser automation:** Playwright (already in career-ops)
@@ -38,13 +50,13 @@ on the Droplet.
 - #bot-logs — raw activity log
 
 ## Dan's Job Search Profile
-- **Target roles:** ML Engineer, MLOps Engineer, NLP Engineer, Computer Vision 
+- **Target roles:** ML Engineer, MLOps Engineer, NLP Engineer, Computer Vision
   Engineer, Edge AI, Data Scientist
 - **Location:** NJ-based or remote
-- **Background:** 
-  - PNC Bank — built org's first ML production pipeline (overdraft predictor, 
+- **Background:**
+  - PNC Bank — built org's first ML production pipeline (overdraft predictor,
     loan rate optimizer, document classifier, internal chatbot)
-  - Four Growers — computer vision for automated tomato harvesting (agricultural 
+  - Four Growers — computer vision for automated tomato harvesting (agricultural
     robotics startup)
   - Army National Guard — Sergeant, 2015-2021
 - **Archetypes to add to modes/_shared.md:**
@@ -55,21 +67,28 @@ on the Droplet.
   - Edge AI — defense/robotics adjacent
 
 ## Key Decisions Already Made
-- Groq free tier is sufficient for selective job search (not batch processing hundreds)
-- PDF generation punted until Phase 3 (Groq can't write files)
+- LLM backend made provider-agnostic via .env config (OpenRouter primary, Groq fallback)
+- Groq Dev Tier waitlist-blocked → switched to OpenRouter pay-as-you-go
+- PDF generation punted until Phase 3 (LLM returns text not files)
 - WebSearch/Playwright browsing deferred for scan.mjs rewrite
 - Obsidian chosen over Notion (free, local-first, markdown, no API needed)
 - Syncthing chosen over Obsidian Sync (free)
-- gemini-eval.mjs pattern used as template for groq-eval.mjs (correct approach)
+- gemini-eval.mjs pattern used as template for llm-eval.mjs (correct approach)
 
 ## What Already Exists in This Repo
-- groq-eval.mjs — Groq counterpart to gemini-eval.mjs, batch + interactive modes
-- batch-runner.sh — updated to call node groq-eval.mjs instead of claude -p
-- package.json — updated with openai dependency and groq:eval script
+- **llm-eval.mjs** — Provider-agnostic evaluator. Reads `LLM_*` env vars and routes
+  to any OpenAI-compatible API. Supports interactive and batch modes. Has presets
+  for OpenRouter, Groq, DeepInfra, OpenAI.
+  - Back-compat: falls back to `OPENROUTER_API_KEY` → `GROQ_API_KEY` with appropriate
+    base URL defaults if `LLM_API_KEY` not set.
+- **batch/batch-runner.sh** — Updated to call `node llm-eval.mjs` instead of
+  `claude -p`. Provider-agnostic, picks up `LLM_*` config from .env.
+- **package.json** — `openai` SDK dependency, `llm:eval` script.
+- **.env.example** — Provider preset blocks for OpenRouter / Groq / DeepInfra / OpenAI.
 
 ## What Still Needs To Be Built
 See CHECKLIST.md for full status. Summary:
-- scan.mjs needs standalone Groq + Playwright rewrite
+- scan.mjs needs standalone LLM + Playwright rewrite
 - Docker Compose setup
 - Discord bot integration (webhook script, reaction handling)
 - Obsidian note writer
@@ -89,7 +108,19 @@ See CHECKLIST.md for full status. Summary:
 - output/ — generated PDFs (gitignored)
 
 ## Environment Variables (in .env)
-GROQ_API_KEY=
+```
+# Active LLM provider config
+LLM_PROVIDER=openrouter
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=<openrouter-key>
+LLM_MODEL=meta-llama/llama-3.3-70b-instruct
+LLM_MAX_TOKENS=4096
+
+# Provider-specific keys (kept for easy switching)
+OPENROUTER_API_KEY=<openrouter-key>
+GROQ_API_KEY=<groq-key>
+
+# Discord + Droplet
 DISCORD_BOT_TOKEN=
 DISCORD_GUILD_ID=
 DISCORD_ALERTS_CHANNEL_ID=
@@ -97,6 +128,10 @@ DISCORD_INPUT_CHANNEL_ID=
 DISCORD_STATUS_CHANNEL_ID=
 DISCORD_LOGS_CHANNEL_ID=
 DROPLET_IP=147.182.136.203
+```
+
+To switch providers, edit `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`. See
+`.env.example` for preset blocks (OpenRouter, Groq, DeepInfra, OpenAI).
 
 ## How To Deploy Changes
 1. Make changes locally
@@ -108,7 +143,7 @@ DROPLET_IP=147.182.136.203
 
 ## Important Constraints
 - Never hardcode credentials — always read from .env
-- Never run LLM inference locally 
+- Never run LLM inference locally
 - Never submit an application without Dan's explicit Discord approval
-- Rate limit Groq calls during scan runs to avoid bursting free tier
+- Rate limit LLM calls during scan runs to avoid bursting provider quotas
 - All file writes go to mounted Docker volumes, not container internals
