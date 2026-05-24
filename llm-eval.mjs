@@ -252,6 +252,11 @@ if (!jdText) {
   process.exit(1);
 }
 
+// Compute today's date once. Used in (a) the system prompt so the LLM has a
+// reliable "today" reference for closure detection / freshness checks, and
+// (b) the report filename + frontmatter further down.
+const today = dateOverride || new Date().toISOString().split('T')[0];
+
 // ---------------------------------------------------------------------------
 // File helpers
 // ---------------------------------------------------------------------------
@@ -297,6 +302,49 @@ function emitBatchFailure(err, partialState = {}) {
     report:     partialState.reportPath || null,
     error:      sanitized,
   }));
+}
+
+/**
+ * Deterministic JD closure detection.
+ *
+ * Why this exists: even when the closure date is literally in the JD and
+ * today's date is in the system prompt, the LLM hallucinates "posting is
+ * recent" rather than actually scanning the text. So we do the pattern
+ * match in code and tell the LLM the answer.
+ *
+ * Returns { closed: bool, closureDate: string|null, matchedText: string|null }
+ */
+function detectClosure(text, todayStr) {
+  // Each regex captures the date string in group 1. Order matters — more
+  // specific patterns first so they win over generic ones.
+  const patterns = [
+    /(?:will\s+be\s+)?accepted\s+(?:at\s+least\s+)?(?:until|through)\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i,
+    /applications?\s+(?:must\s+be\s+)?received\s+by\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i,
+    /(?:applications?\s+)?clos(?:e|es|ed|ing)\s+(?:on\s+)?([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i,
+    /(?:apply|submit)\s+by\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i,
+    /(?:application\s+)?deadline:?\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i,
+    /last\s+day\s+to\s+apply:?\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i,
+    /open\s+until\s+([A-Za-z]+\s+\d{1,2},?\s*\d{4})/i,
+  ];
+
+  const todayDate = new Date(todayStr);
+  if (isNaN(todayDate.getTime())) {
+    return { closed: false, closureDate: null, matchedText: null };
+  }
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const dateStr = match[1];
+    const parsed = new Date(dateStr);
+    if (isNaN(parsed.getTime())) continue;
+    if (parsed < todayDate) {
+      return { closed: true,  closureDate: dateStr, matchedText: match[0] };
+    }
+    // Date is in the future — posting is still open, no need to flag.
+    return { closed: false, closureDate: dateStr, matchedText: match[0] };
+  }
+  return { closed: false, closureDate: null, matchedText: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -346,6 +394,14 @@ ${profileContent}
 ═══════════════════════════════════════════════════════
 IMPORTANT OPERATING RULES FOR THIS HEADLESS SESSION
 ═══════════════════════════════════════════════════════
+
+**Today's date (use this as the authoritative reference for ANY date comparison
+in the JD — posting age, application deadlines, closure detection): ${today}**
+
+If the JD contains a date that is in the past relative to today AND the date
+relates to applications/submissions/deadlines, the posting is CLOSED. See
+Override 3 in the candidate profile for closure handling.
+
 1. You do NOT have access to WebSearch, Playwright, or file writing tools.
    - For Block D (Comp research): provide salary estimates based on your training data, clearly noted as estimates.
    - For Block G (Legitimacy): analyze the JD text only; skip URL/page freshness checks (mark as "unverified (batch mode)").
@@ -363,6 +419,40 @@ LEGITIMACY: <High Confidence | Proceed with Caution | Suspicious>
 `;
 
 // ---------------------------------------------------------------------------
+// Deterministic closure detection (do not rely on the LLM to pattern-match)
+// ---------------------------------------------------------------------------
+const closure = detectClosure(jdText, today);
+
+let userMessage;
+if (closure.closed) {
+  logInfo(`⚠️   Closure detected: matched "${closure.matchedText}" → closure date ${closure.closureDate}, today is ${today}.`);
+  userMessage =
+    `[SYSTEM-DETECTED CLOSURE — APPLY OVERRIDE 3]\n` +
+    `Pattern matcher found this JD is CLOSED:\n` +
+    `  - Matched text: "${closure.matchedText}"\n` +
+    `  - Closure date: ${closure.closureDate}\n` +
+    `  - Today's date: ${today}\n` +
+    `\n` +
+    `Required handling (per Override 3 in candidate profile):\n` +
+    `  - Block G "Legitimacy" MUST be "Closed/Expired" with closure date cited\n` +
+    `  - Block F MUST lead with: "POSTING CLOSED ON ${closure.closureDate} — EVALUATION PRESERVED FOR REFERENCE, CANNOT APPLY"\n` +
+    `  - Still produce complete A-G evaluation + SCORE_SUMMARY block (eval data has reference value)\n` +
+    `  - Score normally; closure is captured in Block G, not in the numeric score\n` +
+    `  - In SCORE_SUMMARY, set LEGITIMACY: Closed/Expired\n` +
+    `\n` +
+    `---\n` +
+    `\n` +
+    `JOB DESCRIPTION TO EVALUATE:\n\n${jdText}`;
+} else if (closure.closureDate) {
+  // Date found but still in the future — note it, don't flag closure.
+  userMessage =
+    `[SYSTEM NOTE: deadline detected "${closure.matchedText}" (${closure.closureDate}). Today is ${today}. Posting is still OPEN.]\n\n` +
+    `JOB DESCRIPTION TO EVALUATE:\n\n${jdText}`;
+} else {
+  userMessage = `JOB DESCRIPTION TO EVALUATE:\n\n${jdText}`;
+}
+
+// ---------------------------------------------------------------------------
 // Call the LLM (any OpenAI-compatible provider)
 // ---------------------------------------------------------------------------
 logInfo(`🤖  Calling ${providerConfig.provider} (${modelName})... this usually takes 10-30 seconds.\n`);
@@ -378,7 +468,7 @@ try {
     model:       modelName,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user',   content: `JOB DESCRIPTION TO EVALUATE:\n\n${jdText}` },
+      { role: 'user',   content: userMessage },
     ],
     temperature: 0.4,         // deterministic enough for structured evaluation
     max_tokens:  maxTokens,
@@ -455,7 +545,7 @@ if (summaryMatch) {
 // ---------------------------------------------------------------------------
 let reportPath = null;
 let reportNum  = reportNumOverride;
-const today    = dateOverride || new Date().toISOString().split('T')[0];
+// `today` was already computed near the top of the file (used in system prompt).
 const companySlug = company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unknown';
 
 if (saveReport) {

@@ -59,12 +59,16 @@ on the Droplet.
   - Four Growers — computer vision for automated tomato harvesting (agricultural
     robotics startup)
   - Army National Guard — Sergeant, 2015-2021
-- **Archetypes to add to modes/_shared.md:**
-  - LLMOps — production LLM pipeline roles
-  - MLOps — maps to PNC background
-  - NLP Engineer — document classification, extraction
-  - Computer Vision — Four Growers background
-  - Edge AI — defense/robotics adjacent
+- **Archetypes** (added to `modes/_profile.md` per AGENTS.md user-layer rule —
+  NOT _shared.md, which is system-layer and may be overwritten by upstream updates):
+  - MLOps Engineer — maps to PNC platform work
+  - NLP Engineer — PNC document extraction + RAG chatbot
+  - Computer Vision Engineer — Four Growers Mask R-CNN + YOLO
+  - Generative AI / LLM Engineer — PNC RAG, GANs/VAEs/Latent Diffusion stack
+  - Edge AI / Robotics ML — Four Growers robotics + Guard adjacency
+  - Data Scientist — PNC XGBoost loan optimizer + analytical work
+  - Research Engineer — LLNL + CMU CNBC background
+  - Applied ML Engineer (generalist) — catch-all for end-to-end ML roles
 
 ## Key Decisions Already Made
 - LLM backend made provider-agnostic via .env config (OpenRouter primary, Groq fallback)
@@ -76,6 +80,8 @@ on the Droplet.
 - gemini-eval.mjs pattern used as template for llm-eval.mjs (correct approach)
 
 ## What Already Exists in This Repo
+
+### Code (Phase 2 — LLM swap)
 - **llm-eval.mjs** — Provider-agnostic evaluator. Reads `LLM_*` env vars and routes
   to any OpenAI-compatible API. Supports interactive and batch modes. Has presets
   for OpenRouter, Groq, DeepInfra, OpenAI.
@@ -85,6 +91,19 @@ on the Droplet.
   `claude -p`. Provider-agnostic, picks up `LLM_*` config from .env.
 - **package.json** — `openai` SDK dependency, `llm:eval` script.
 - **.env.example** — Provider preset blocks for OpenRouter / Groq / DeepInfra / OpenAI.
+
+### Personalization (Phase 4 — Dan's profile)
+- **cv.md** — Dan's resume in clean markdown (Summary, 4 work entries, Service,
+  Education, Skills). Read by `llm-eval.mjs` on every eval.
+- **config/profile.yml** — Dan's target roles, archetype list, comp targets
+  ($120K base floor), location prefs (Remote > NYC > Pittsburgh), dealbreakers
+  (off-list locations, clearance roles, sub-floor comp), work auth (US citizen,
+  no clearance, Guard veteran), 7yr experience signaling.
+- **modes/_profile.md** — Dan's 8 ML archetypes (MLOps, NLP, CV, Generative AI,
+  Edge AI, Data Scientist, Research Engineer, Applied ML generalist), adaptive
+  framing table mapping each archetype to which PNC/Four Growers/research proof
+  points to emphasize, cross-cutting advantage narrative, location-policy
+  scoring rules, negotiation scripts adapted to Dan's situation.
 
 ## What Still Needs To Be Built
 See CHECKLIST.md for full status. Summary:

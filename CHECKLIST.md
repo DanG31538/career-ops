@@ -35,7 +35,7 @@
 - [x] Droplet rebooted, new kernel confirmed
 - [x] SSH confirmed as jobops user
 
-## Phase 2 — Swap LLM Backend 🔲 IN PROGRESS
+## Phase 2 — Swap LLM Backend ✅ COMPLETE (core)
 - [x] llm-eval.mjs created (provider-agnostic, ~430 lines)
   - [x] Interactive mode: `node llm-eval.mjs "JD text"` or `--file <path>`
   - [x] Batch mode: `--file ... --report-num ... --id ... --url ... --date ...`
@@ -54,15 +54,18 @@
 - [x] OpenRouter API key pasted into LLM_API_KEY + OPENROUTER_API_KEY in local .env
 - [x] llm-eval.mjs tested locally with OpenRouter (dummy JD, Acme test) — score 4.2,
       SCORE_SUMMARY parsed cleanly, report saved as reports/001-acme-2026-05-23.md
-- [ ] **NEXT: Commit + push code changes (llm-eval.mjs, deleted groq-eval.mjs,
-      batch-runner.sh, package.json, .env.example) — only md docs pushed so far**
-- [ ] llm-eval.mjs tested with real job listing URL
+- [x] Code changes committed + pushed (llm-eval.mjs, batch-runner.sh, package.json,
+      .env.example)
+- [x] git pull on Droplet successful
+- [x] OpenRouter key added to Droplet .env
+- [x] npm install run on Droplet (required fixing Node/npm via NodeSource first —
+      Ubuntu apt-shipped npm choked on the modern lockfile)
+- [x] llm-eval.mjs test run on Droplet (dummy JD) — eval printed successfully
+- [ ] llm-eval.mjs tested with real job listing URL (deferred — useful once cv.md exists)
 - [ ] scan.mjs rewritten — standalone LLM + Playwright, no Claude Code runtime
-- [ ] git pull on Droplet after all Phase 2 code changes pushed
-- [ ] OpenRouter key added to Droplet .env (in progress — editing nano)
-- [ ] npm install run on Droplet
-- [ ] llm-eval.mjs test run on Droplet (dummy JD)
-- [ ] batch/batch-runner.sh --dry-run confirmed working on Droplet
+      (deferred to Phase 5/7 — needed once we want autonomous portal scanning)
+- [ ] batch/batch-runner.sh --dry-run confirmed working on Droplet (deferred until
+      batch-input.tsv has real entries)
 
 ## Phase 3 — Dockerize for Droplet 🔲 PENDING
 - [ ] Dockerfile written for career-ops Node/Go environment
@@ -79,24 +82,40 @@
 - [ ] Teardown and rebuild tested (portability verification)
 - [ ] PDF generation wired in (node generate-pdf.mjs post-eval)
 
-## Phase 4 — Personalize Profile 🔲 PENDING
-- [ ] cv.md created with Dan's full resume in markdown
-- [ ] config/profile.yml created from profile.example.yml
-  - [ ] Target roles filled in
-  - [ ] Salary floor set
-  - [ ] Location preferences set
-  - [ ] Dealbreakers set
-- [ ] ML archetypes added to modes/_shared.md:
-  - [ ] LLMOps
-  - [ ] MLOps
-  - [ ] NLP Engineer
-  - [ ] Computer Vision
-  - [ ] Edge AI
+## Phase 4 — Personalize Profile ✅ COMPLETE (core)
+- [x] cv.md created with Dan's full resume in markdown
+- [x] config/profile.yml created (target roles, $120K base floor, location prefs,
+      dealbreakers, work auth, 7yr experience)
+  - [x] Target roles filled in (8 ML archetypes: MLOps, NLP, CV, Generative AI,
+        Applied ML, Data Scientist, Edge AI, Research Engineer)
+  - [x] Salary floor set ($120K base — walk-away)
+  - [x] Location preferences set (Remote > NYC metro > Pittsburgh)
+  - [x] Dealbreakers set (off-list locations, clearance-required roles, sub-$120K base)
+- [x] ML archetypes added to **modes/_profile.md** (NOT _shared.md per AGENTS.md user-layer rule):
+  - [x] MLOps Engineer
+  - [x] NLP Engineer
+  - [x] Computer Vision Engineer
+  - [x] Generative AI / LLM Engineer
+  - [x] Edge AI / Robotics ML
+  - [x] Data Scientist
+  - [x] Research Engineer
+  - [x] Applied ML Engineer (generalist)
+  - [x] Adaptive framing table (archetype → which proof points to emphasize)
+  - [x] Cross-cutting advantage narrative
+  - [x] Location policy + clearance-skip rule
+  - [x] Negotiation scripts adapted to Dan's situation
+- [ ] LinkedIn URL pasted into config/profile.yml (currently TBD)
 - [ ] portals.yml created from templates/portals.example.yml
   - [ ] ML/AI relevant companies kept
   - [ ] Irrelevant companies removed
   - [ ] Additional target companies added
-- [ ] Test eval run on real job listing — verify scoring makes sense
+- [x] Test eval run on real job listings — calibrated across 3 tuning rounds
+      (Acme dummy, Relativity Principal Applied Scientist, NVIDIA closed posting).
+      Title caps + closure detection both confirmed working end-to-end.
+- [ ] **NEXT: Commit + push Phase 4 files to GitHub**
+- [ ] Pull Phase 4 files on Droplet + verify llm-eval.mjs works there with new files
+- [ ] portals.yml created from templates/portals.example.yml (deferred — only
+      needed for autonomous scan.mjs, not for manual eval flow)
 
 ## Phase 5 — Discord Integration 🔲 PENDING
 - [ ] Discord webhook script written (Node.js)
@@ -164,3 +183,54 @@
 - 2026-05-23: GROQ_API_KEY kept in .env as fallback. To switch back to Groq, blank
   out LLM_API_KEY (or set LLM_BASE_URL=https://api.groq.com/openai/v1 and
   LLM_MODEL=llama-3.3-70b-versatile).
+- 2026-05-23: Droplet `sudo apt install npm` installed a broken npm that failed to
+  pull `openai`. Fixed by purging apt nodejs/npm and installing Node 20 LTS via
+  NodeSource. Phase 3 Docker setup will sidestep this entirely.
+- 2026-05-23: Phase 2 closed — llm-eval.mjs works end-to-end on both local and
+  droplet. Deferred items (real-URL test, scan.mjs rewrite, batch dry-run) are
+  parked because they depend on Phase 4 personalization (cv.md, profile.yml).
+- 2026-05-23: Phase 4 personalization in progress — cv.md, config/profile.yml,
+  modes/_profile.md all created. PNC dates updated to "Aug 2020 – Apr 2026"
+  (left this year, currently open to work). LinkedIn slug filled in.
+- 2026-05-23: First real-JD calibration round:
+  - **test-1** (4.8/5): user agrees → no tuning needed
+  - **test-2** ("Scientist" title, scored high): user disagrees, role expects
+    novel research / heavy math → added Role-Shape Caps section to _profile.md:
+    Research Scientist tier capped at 3.0, heavy-theory roles capped at 3.5,
+    academic/postdoc capped at 2.5. Exceptions for applied research and for
+    research domains matching Dan's LLNL/CMU background.
+  - **test-3** (no score, posting closed): system bailed instead of evaluating.
+    Added Closed Posting Policy to _profile.md: always produce full A-G eval +
+    SCORE_SUMMARY, mark Block G as "Closed/Expired", lead Block F with closure
+    notice. Reasoning: eval data has reference value even when can't apply.
+- 2026-05-24: Tuning round 2 (verification):
+  - **test-2 re-run** (Relativity Principal Applied Scientist): cap STILL didn't
+    fire — model produced 4.8 score, Block C never mentioned the cap rule. Root
+    causes: (a) exact substring matching ("Principal Scientist" doesn't appear
+    in "Principal Applied Scientist") (b) Role-Shape Caps was near bottom of
+    _profile.md, attention dropoff. Fixed by rewriting modes/_profile.md with
+    a top-of-file MANDATORY OVERRIDES section using semantic matching
+    (seniority-word + scientist-word) + explicit examples + REQUIRED Block C
+    "Title Cap Analysis:" line. Also folded in Closed Posting + Hard SKIP rules.
+  - **test-3 re-run** (NVIDIA Senior Math Libraries Engineer): closure NOT
+    detected because (a) my pattern list was too narrow — the JD uses
+    "Applications for this job will be accepted at least until April 12, 2026"
+    which my grep/rule didn't match, and (b) the LLM had no reliable "today"
+    reference. First fix (insufficient):
+    - `llm-eval.mjs`: injects today's date into the system prompt's operating
+      rules so the LLM has an authoritative reference for date comparisons.
+    - `modes/_profile.md` Override 3: expanded closure-signal list and added
+      explicit "compare ANY application-related date against today" rule.
+- 2026-05-24: Tuning round 3 — text-based rules STILL not enough.
+  - test-3 v2 still produced no closure flag. The LLM was hallucinating "Posting
+    age: 3 days (recent)" without scanning the JD for the deadline.
+  - Root cause: LLMs are unreliable at deterministic pattern matching when
+    the rule is buried in a long system prompt. Even with `today` injected,
+    the model defaulted to filling in standard Block G template fields with
+    plausible-sounding values.
+  - Real fix: do the closure detection in JS code (deterministic regex), then
+    **prepend a SYSTEM-DETECTED CLOSURE notice to the JD itself** (highest-
+    attention slot — directly above the JD content the LLM is evaluating).
+    `llm-eval.mjs` now has a `detectClosure(jdText, today)` function and
+    constructs the user message with an explicit closure block when matched.
+    The LLM no longer has to find the date — it's told the answer.
