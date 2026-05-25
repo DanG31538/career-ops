@@ -74,7 +74,8 @@ on the Droplet.
 - LLM backend made provider-agnostic via .env config (OpenRouter primary, Groq fallback)
 - Groq Dev Tier waitlist-blocked → switched to OpenRouter pay-as-you-go
 - PDF generation punted until Phase 3 (LLM returns text not files)
-- WebSearch/Playwright browsing deferred for scan.mjs rewrite
+- scan.mjs already works standalone (no rewrite needed); pipeline processor
+  for evaluating discovered URLs deferred to Phase 5 (Discord layer)
 - Obsidian chosen over Notion (free, local-first, markdown, no API needed)
 - Syncthing chosen over Obsidian Sync (free)
 - gemini-eval.mjs pattern used as template for llm-eval.mjs (correct approach)
@@ -107,13 +108,15 @@ on the Droplet.
 
 ## What Still Needs To Be Built
 See CHECKLIST.md for full status. Summary:
-- scan.mjs needs standalone LLM + Playwright rewrite
-- Docker Compose setup
-- Discord bot integration (webhook script, reaction handling)
-- Obsidian note writer
-- Syncthing setup on Droplet
-- Cron scheduling
-- cv.md and config/profile.yml need Dan's real content
+- **Pipeline processor** (NOT scan.mjs — that already works standalone).
+  Needed for autonomous flow: takes URLs from data/pipeline.md → fetches
+  JD text (Playwright or per-ATS JD-content APIs) → invokes llm-eval.mjs.
+  Will be built as part of Phase 5 (Discord) since the Discord bot is the
+  natural caller of this logic.
+- Docker Compose setup (Phase 3)
+- Discord bot integration with webhook + reaction handling (Phase 5)
+- Obsidian note writer + Syncthing setup (Phase 6)
+- Cron scheduling (Phase 7)
 
 ## File Structure Notes
 - modes/ — skill mode instructions, written for Claude Code, work as plain prompts

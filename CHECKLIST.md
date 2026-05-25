@@ -82,7 +82,7 @@
 - [ ] Teardown and rebuild tested (portability verification)
 - [ ] PDF generation wired in (node generate-pdf.mjs post-eval)
 
-## Phase 4 — Personalize Profile ✅ COMPLETE (core)
+## Phase 4 — Personalize Profile ✅ COMPLETE
 - [x] cv.md created with Dan's full resume in markdown
 - [x] config/profile.yml created (target roles, $120K base floor, location prefs,
       dealbreakers, work auth, 7yr experience)
@@ -112,10 +112,14 @@
 - [x] Test eval run on real job listings — calibrated across 3 tuning rounds
       (Acme dummy, Relativity Principal Applied Scientist, NVIDIA closed posting).
       Title caps + closure detection both confirmed working end-to-end.
+- [x] portals.yml created — curated ~30 ML/AI companies that work with
+      scan.mjs's ATS providers (Ashby/Greenhouse/Lever). location_filter set
+      to Remote / NYC metro / Pittsburgh. title_filter ML-focused. WebSearch-
+      based companies omitted (would be silent no-ops without Playwright).
+- [x] Clarified scan.mjs status — already works standalone, no rewrite needed.
+      Pipeline processor (JD-fetch + invoke llm-eval.mjs) deferred to Phase 5.
 - [ ] **NEXT: Commit + push Phase 4 files to GitHub**
-- [ ] Pull Phase 4 files on Droplet + verify llm-eval.mjs works there with new files
-- [ ] portals.yml created from templates/portals.example.yml (deferred — only
-      needed for autonomous scan.mjs, not for manual eval flow)
+- [ ] Pull Phase 4 files on Droplet + verify llm-eval.mjs + scan.mjs work there
 
 ## Phase 5 — Discord Integration 🔲 PENDING
 - [ ] Discord webhook script written (Node.js)
