@@ -1,0 +1,115 @@
+# Career-Ops Profile Configuration — Daniel Garcia
+# Personalization layer — never auto-updated by the system.
+# Source of truth for personal data across all modes.
+
+candidate:
+  full_name: "Daniel Garcia"
+  email: "dangarcia31538@gmail.com"
+  phone: "+1-973-934-7491"
+  location: "Wallington, NJ"
+  linkedin: "linkedin.com/in/daniel--garcia"
+  portfolio_url: ""
+  github: ""
+  twitter: ""
+
+target_roles:
+  # North-star roles — what to optimize for
+  primary:
+    - "Machine Learning Engineer"
+    - "Senior ML Engineer"
+    - "Staff ML Engineer"
+    - "MLOps Engineer"
+    - "NLP Engineer"
+    - "Computer Vision Engineer"
+    - "Generative AI / LLM Engineer"
+  # Archetype mapping — the evaluator uses these to classify incoming JDs.
+  # See modes/_profile.md for the full archetype definitions + framing rules.
+  archetypes:
+    - name: "MLOps Engineer"
+      level: "Senior/Staff"
+      fit: "primary"
+    - name: "NLP Engineer"
+      level: "Senior/Staff"
+      fit: "primary"
+    - name: "Computer Vision Engineer"
+      level: "Senior/Staff"
+      fit: "primary"
+    - name: "Generative AI / LLM Engineer"
+      level: "Senior/Staff"
+      fit: "primary"
+    - name: "Applied ML Engineer (generalist)"
+      level: "Senior/Staff"
+      fit: "primary"
+    - name: "Data Scientist"
+      level: "Senior"
+      fit: "secondary"
+    - name: "Edge AI / Robotics ML"
+      level: "Senior"
+      fit: "secondary"
+    - name: "Research Engineer"
+      level: "Senior"
+      fit: "secondary"
+
+narrative:
+  headline: "ML Engineer with production track record across banking, agricultural robotics, and neural-interface research"
+  exit_story: "Built PNC's first production ML pipeline (NLP + CV + RAG, $5.3M annual savings, $500K cost reduction). Looking for ML/MLOps roles where production rigor and multi-modal breadth translate into real business outcomes."
+  superpowers:
+    - "End-to-end production ML pipelines (Kubernetes, Kubeflow, CI/CD, TFX)"
+    - "Multi-modal deployment: NLP, CV, RAG, traditional ML — all to prod"
+    - "Translating research into production systems"
+    - "Cross-functional leadership (led team of 60 at PNC)"
+    - "Neuroscience + research-engineer foundation (LLNL, CMU)"
+  proof_points:
+    - name: "PNC RAG chatbot + NLP document extraction pipeline"
+      url: ""
+      hero_metric: "Production deployment of 4 ML models → $5.3M annual savings"
+    - name: "PNC Kubernetes + Kubeflow ML platform"
+      url: ""
+      hero_metric: "First containerized ML pipeline at PNC; 60% deployment efficiency improvement"
+    - name: "Four Growers tomato-picking CV system"
+      url: ""
+      hero_metric: "Mask R-CNN on 20K+ images; 45% picking efficiency increase; 25% cost savings"
+    - name: "CMU synaptic-transmission classifier"
+      url: ""
+      hero_metric: "Inception-ResNet model; 60% accuracy improvement over prior methods"
+
+compensation:
+  target_range: "$140K-180K base"
+  currency: "USD"
+  minimum: "$120K"                      # base salary floor — walk-away below this
+  comp_type: "base"                     # comp floor is on BASE, not total comp
+  location_flexibility: "Remote preferred. Open to NYC metro or Pittsburgh on-site/hybrid."
+
+location:
+  country: "United States"
+  city: "Wallington, NJ"
+  timezone: "ET"
+  visa_status: "US Citizen — no sponsorship needed"
+  remote_preference: "Strong preference for full remote"
+  acceptable_locations:
+    - "Remote (US)"
+    - "New York, NY metro"
+    - "Pittsburgh, PA"
+  preference_order:
+    1: "Remote"
+    2: "New York, NY metro"
+    3: "Pittsburgh, PA"
+
+dealbreakers:
+  - "On-site requirement outside Remote / NYC metro / Pittsburgh"
+  - "Roles requiring active security clearance (TS/SCI, Secret, Public Trust, etc.)"
+  - "Total comp packages with base salary below $120K"
+
+work_authorization:
+  citizenship: "US Citizen"
+  clearance: "None — not pursuing clearance-required roles"
+  veteran_status: "Veteran (US Army National Guard, Sergeant, 2015-2021)"
+
+experience:
+  years_total: 7
+  most_recent_role: "Machine Learning Engineer at PNC Bank (Aug 2020 – Apr 2026)"
+  current_status: "Open to work — actively job searching, no current employer"
+  seniority_targeting: "Senior / Staff IC, open to Lead-IC hybrid"
+
+cv:
+  output_format: "html"                 # html (default) or latex

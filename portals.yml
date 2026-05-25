@@ -1,0 +1,421 @@
+# Portal Scanner Configuration — Daniel Garcia
+# Used by `scan.mjs` (zero-token portal scan) to populate data/pipeline.md.
+#
+# How this file is read:
+#   - `location_filter` and `title_filter` gate every candidate job before it's added
+#   - `tracked_companies` lists the ATS endpoints to scan; one entry per company
+#   - `scan.mjs` only handles Greenhouse / Ashby / Lever providers — companies on
+#     other platforms (Workable, Workday, BambooHR, etc.) get skipped silently
+#     until we add a Playwright-backed pipeline processor in Phase 5 (Discord)
+#
+# To preview without writing files:  node scan.mjs --dry-run
+# To scan a single company:           node scan.mjs --company "Anthropic"
+
+# ============================================================
+#  Location filter — applied AFTER title filter, BEFORE dedup
+# ============================================================
+# Matches `location` string on each job (case-insensitive substring).
+# - Block list takes precedence over allow list
+# - Empty location strings always pass (don't penalize missing data)
+# - Allow list lets remote + US tri-state metros through
+
+location_filter:
+  allow:
+    - "Remote"
+    - "United States"
+    - "USA"
+    - "U.S."
+    - "U.S. Remote"
+    - "Anywhere"
+    - "New York"
+    - "NY"
+    - "NYC"
+    - "Brooklyn"
+    - "Manhattan"
+    - "Pittsburgh"
+    - "PA"
+    - "Pennsylvania"
+    - "New Jersey"
+    - "NJ"
+    - "Jersey City"
+  block:
+    - "India"
+    - "Bengaluru"
+    - "Bangalore"
+    - "Hyderabad"
+    - "Mumbai"
+    - "Delhi"
+    - "Pune"
+    - "Chennai"
+    - "United Kingdom"
+    - "UK"
+    - "London"
+    - "Manchester"
+    - "Cambridge, UK"
+    - "Edinburgh"
+    - "Germany"
+    - "Berlin"
+    - "Munich"
+    - "Hamburg"
+    - "Cologne"
+    - "Frankfurt"
+    - "France"
+    - "Paris"
+    - "Lyon"
+    - "Spain"
+    - "Madrid"
+    - "Barcelona"
+    - "Italy"
+    - "Milan"
+    - "Rome"
+    - "Singapore"
+    - "Tokyo"
+    - "Japan"
+    - "Australia"
+    - "Sydney"
+    - "Melbourne"
+    - "Brazil"
+    - "São Paulo"
+    - "Mexico"
+    - "Mexico City"
+    - "Argentina"
+    - "Buenos Aires"
+    - "Türkiye"
+    - "Turkey"
+    - "Istanbul"
+    - "Ankara"
+    - "Switzerland"
+    - "Zurich"
+    - "Geneva"
+    - "Austria"
+    - "Vienna"
+    - "Stockholm"
+    - "Sweden"
+    - "Norway"
+    - "Oslo"
+    - "Copenhagen"
+    - "Denmark"
+    - "Helsinki"
+    - "Finland"
+    - "Amsterdam"
+    - "Netherlands"
+    - "Rotterdam"
+    - "Dublin"
+    - "Ireland"
+    - "Lisbon"
+    - "Portugal"
+    - "Poland"
+    - "Warsaw"
+    - "Israel"
+    - "Tel Aviv"
+    - "UAE"
+    - "Dubai"
+
+# ============================================================
+#  Title filter — at least one positive AND zero negatives
+# ============================================================
+
+title_filter:
+  positive:
+    # -- ML / AI Engineering --
+    - "Machine Learning"
+    - "ML Engineer"
+    - "ML Ops"
+    - "MLOps"
+    - "Applied ML"
+    - "Applied AI"
+    - "AI Engineer"
+    - "AI/ML"
+    - "AIML"
+    - "Model Engineer"
+    - "Deep Learning"
+    # -- NLP / LLM / Generative --
+    - "NLP"
+    - "Natural Language"
+    - "LLM"
+    - "Generative AI"
+    - "GenAI"
+    - "Foundation Model"
+    - "Language Model"
+    - "Agentic"
+    - "Agent Engineer"
+    - "AI Agent"
+    # -- Computer Vision / Robotics / Edge --
+    - "Computer Vision"
+    - "CV Engineer"
+    - "Vision Engineer"
+    - "Edge AI"
+    - "Edge ML"
+    - "Embedded ML"
+    - "Robotics"
+    - "Perception"
+    # -- Data Science / Research --
+    - "Data Scientist"
+    - "Data Science"
+    - "Research Engineer"
+    - "Research Scientist"     # capped at 3.0/5 by modes/_profile.md Override 1
+    - "Applied Scientist"      # also capped at 3.0/5
+  negative:
+    # -- Seniority floor (no junior / entry-level) --
+    - "Junior"
+    - "Jr."
+    - "Intern"
+    - "Internship"
+    - "Engineer I"
+    - "Engineer 1"
+    - "Associate"
+    - "Apprentice"
+    - "Graduate"
+    - "Entry Level"
+    - "Entry-Level"
+    - "New Grad"
+    # -- Wrong function --
+    - "Recruiter"
+    - "Recruiting"
+    - "Sales"
+    - "Account Executive"
+    - "Account Manager"
+    - "Customer Success"
+    - "Customer Support"
+    - "Marketing"
+    - "BDR"
+    - "SDR"
+    - "Designer"
+    # -- Tech stacks Dan doesn't want --
+    - ".NET"
+    - "iOS"
+    - "Android"
+    - "PHP"
+    - "Salesforce Admin"
+    - "SAP "
+    - "Oracle EBS"
+    - "Mainframe"
+    - "COBOL"
+    - "Blockchain"
+    - "Web3"
+    - "Crypto"
+  seniority_boost:
+    # Soft preference, not required
+    - "Senior"
+    - "Staff"
+    - "Principal"
+    - "Lead"
+
+# ============================================================
+#  Tracked companies — scan.mjs hits these via Ashby/Greenhouse/Lever APIs
+# ============================================================
+# Only ATS endpoints scan.mjs's providers can read are included here.
+# Other ATS platforms (Workable, Workday, BambooHR, custom careers pages) are
+# excluded — they'd be silent no-ops until Phase 5 adds a Playwright fallback.
+
+tracked_companies:
+
+  # -- AI Labs / LLM providers --
+
+  - name: Anthropic
+    careers_url: https://job-boards.greenhouse.io/anthropic
+    api: https://boards-api.greenhouse.io/v1/boards/anthropic/jobs
+    enabled: true
+
+  - name: Cohere
+    careers_url: https://jobs.ashbyhq.com/cohere
+    notes: "AI/LLM provider. Toronto + remote."
+    enabled: true
+
+  - name: Mistral AI
+    careers_url: https://jobs.lever.co/mistral
+    notes: "Paris. EU-based — location filter will gate US-eligibility."
+    enabled: true
+
+  # -- MLOps / AI Observability / Infra --
+
+  - name: Arize AI
+    careers_url: https://job-boards.greenhouse.io/arizeai
+    api: https://boards-api.greenhouse.io/v1/boards/arizeai/jobs
+    notes: "LLMOps / AI observability."
+    enabled: true
+
+  - name: Weights & Biases (CoreWeave)
+    careers_url: https://job-boards.greenhouse.io/coreweave
+    api: https://boards-api.greenhouse.io/v1/boards/coreweave/jobs
+    notes: "W&B acquired by CoreWeave (May 2025). GPU cloud + experiment tracking."
+    enabled: true
+
+  - name: RunPod
+    careers_url: https://job-boards.greenhouse.io/runpod
+    api: https://boards-api.greenhouse.io/v1/boards/runpod/jobs
+    notes: "GPU cloud for AI."
+    enabled: true
+
+  - name: Temporal
+    careers_url: https://job-boards.greenhouse.io/temporal
+    api: https://boards-api.greenhouse.io/v1/boards/temporal/jobs
+    notes: "Workflow orchestration; relevant for ML pipeline reliability."
+    enabled: true
+
+  - name: Vercel
+    careers_url: https://job-boards.greenhouse.io/vercel
+    api: https://boards-api.greenhouse.io/v1/boards/vercel/jobs
+    notes: "AI SDK, v0.dev. Frontend AI tooling."
+    enabled: true
+
+  - name: Hightouch
+    careers_url: https://job-boards.greenhouse.io/hightouch
+    api: https://boards-api.greenhouse.io/v1/boards/hightouch/jobs
+    notes: "Data activation + AI agents."
+    enabled: true
+
+  - name: PlanetScale
+    careers_url: https://job-boards.greenhouse.io/planetscale
+    api: https://boards-api.greenhouse.io/v1/boards/planetscale/jobs
+    notes: "Serverless MySQL. ML-platform-adjacent."
+    enabled: true
+
+  # -- Voice AI / Conversational AI / NLP-heavy --
+
+  - name: Hume AI
+    careers_url: https://job-boards.greenhouse.io/humeai
+    api: https://boards-api.greenhouse.io/v1/boards/humeai/jobs
+    notes: "NYC. Empathic voice AI."
+    enabled: true
+
+  - name: Intercom
+    careers_url: https://job-boards.greenhouse.io/intercom
+    api: https://boards-api.greenhouse.io/v1/boards/intercom/jobs
+    notes: "Fin AI agent (customer support LLM). Dublin-based; remote-friendly for US."
+    enabled: true
+
+  - name: Speechmatics
+    careers_url: https://job-boards.greenhouse.io/speechmatics
+    api: https://boards-api.greenhouse.io/v1/boards/speechmatics/jobs
+    notes: "Cambridge UK. Speech recognition; location filter gates."
+    enabled: true
+
+  - name: ElevenLabs
+    careers_url: https://jobs.ashbyhq.com/elevenlabs
+    notes: "Voice AI / TTS leader."
+    enabled: true
+
+  - name: Deepgram
+    careers_url: https://jobs.ashbyhq.com/deepgram
+    notes: "STT/TTS APIs."
+    enabled: true
+
+  # -- AI Agents / Applied AI --
+
+  - name: Sierra
+    careers_url: https://jobs.ashbyhq.com/sierra
+    notes: "Bret Taylor (ex-Salesforce CEO). AI customer agents."
+    enabled: true
+
+  - name: Decagon
+    careers_url: https://jobs.ashbyhq.com/decagon
+    notes: "AI customer support agents."
+    enabled: true
+
+  - name: Lindy
+    careers_url: https://jobs.ashbyhq.com/lindy
+    notes: "AI agent management platform."
+    enabled: true
+
+  - name: Perplexity
+    careers_url: https://jobs.ashbyhq.com/perplexity
+    notes: "AI-native search; enterprise AI."
+    enabled: true
+
+  - name: Glean
+    careers_url: https://job-boards.greenhouse.io/gleanwork
+    api: https://boards-api.greenhouse.io/v1/boards/gleanwork/jobs
+    notes: "Enterprise AI search."
+    enabled: true
+
+  # -- Generative AI / Diffusion / Foundation Models --
+
+  - name: Black Forest Labs
+    careers_url: https://job-boards.greenhouse.io/blackforestlabs
+    api: https://boards-api.greenhouse.io/v1/boards/blackforestlabs/jobs
+    notes: "Freiburg DE / SF. FLUX image models (ex-Stable Diffusion team)."
+    enabled: true
+
+  - name: Runway
+    careers_url: https://job-boards.greenhouse.io/runwayml
+    api: https://boards-api.greenhouse.io/v1/boards/runwayml/jobs
+    notes: "Generative video / creative tooling."
+    enabled: true
+
+  - name: Stability AI
+    careers_url: https://job-boards.greenhouse.io/stabilityai
+    api: https://boards-api.greenhouse.io/v1/boards/stabilityai/jobs
+    notes: "London / SF. Image/video generative research."
+    enabled: true
+
+  # -- LLM Tooling / Infra --
+
+  - name: LangChain
+    careers_url: https://jobs.ashbyhq.com/langchain
+    notes: "LangChain / LangSmith framework."
+    enabled: true
+
+  - name: Pinecone
+    careers_url: https://jobs.ashbyhq.com/pinecone
+    notes: "Vector database."
+    enabled: true
+
+  # -- Computer Vision / Robotics / Edge AI --
+
+  - name: Wayve
+    careers_url: https://job-boards.greenhouse.io/wayve
+    api: https://boards-api.greenhouse.io/v1/boards/wayve/jobs
+    notes: "London UK. Self-driving / embodied AI. Location filter gates US-eligibility."
+    enabled: true
+
+  - name: Safari AI
+    careers_url: https://job-boards.greenhouse.io/safariai
+    api: https://boards-api.greenhouse.io/v1/boards/safariai/jobs
+    notes: "Miami HQ / Vancouver eng. Computer vision for the physical economy."
+    enabled: true
+
+  - name: Sanctuary AI
+    careers_url: https://jobs.lever.co/sanctuary
+    notes: "Vancouver. Humanoid robotics / embodied AI."
+    enabled: true
+
+  - name: Scandit
+    careers_url: https://job-boards.greenhouse.io/scandit
+    api: https://boards-api.greenhouse.io/v1/boards/scandit/jobs
+    notes: "Zurich CH. CV / smart data capture."
+    enabled: true
+
+  # -- Defense / Dual-Use AI ---
+  # Override 4 in modes/_profile.md auto-skips any role requiring clearance.
+
+  - name: Palantir
+    careers_url: https://jobs.lever.co/palantir
+    notes: "FDE roles. Many require clearance — Override 4 will SKIP those."
+    enabled: true
+
+  - name: Helsing
+    careers_url: https://job-boards.greenhouse.io/helsing
+    api: https://boards-api.greenhouse.io/v1/boards/helsing/jobs
+    notes: "Defense AI. Munich/Berlin/London/Paris — location filter gates."
+    enabled: true
+
+  # -- Health / Bio AI (Dan's neuroscience background relevant — see _profile.md cap-lift) --
+
+  - name: Isomorphic Labs
+    careers_url: https://job-boards.greenhouse.io/isomorphiclabs
+    api: https://boards-api.greenhouse.io/v1/boards/isomorphiclabs/jobs
+    notes: "DeepMind spin-out for drug discovery. London / Lausanne / Cambridge MA."
+    enabled: true
+
+  # -- ML-Heavy Consumer / Platform --
+
+  - name: Spotify
+    careers_url: https://jobs.lever.co/spotify
+    notes: "Large ML/personalization org. Stockholm + NYC + remote-friendly for US."
+    enabled: true
+
+  - name: Pigment
+    careers_url: https://jobs.lever.co/pigment
+    notes: "Paris / NYC / London. AI-powered FP&A. Location filter gates non-US."
+    enabled: true

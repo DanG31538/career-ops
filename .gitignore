@@ -1,5 +1,6 @@
 # Personal data (user fills these)
-cv.md
+# NOTE (Dan's fork): cv.md is now tracked — it's part of the deployable config.
+# Upstream career-ops keeps cv.md ignored because their repo is shared; ours is private.
 data/applications.md
 data/pipeline.md
 data/scan-history.tsv
@@ -20,10 +21,10 @@ jds/*
 writing-samples/*
 !writing-samples/README.md
 
-# User config and customization (never auto-updated)
-config/profile.yml
-portals.yml
-modes/_profile.md
+# User config and customization
+# NOTE (Dan's fork): config/profile.yml, portals.yml, modes/_profile.md are now
+# tracked — they're part of the deployable config the droplet needs.
+# Upstream career-ops keeps them ignored for multi-user reasons; we don't need that.
 .update-dismissed
 .update-lock
 
