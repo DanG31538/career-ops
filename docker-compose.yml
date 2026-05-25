@@ -1,0 +1,47 @@
+# career-ops Docker Compose
+# ------------------------------------------------------------
+# Single service. No web ports exposed (Discord is outbound-
+# only, no inbound needed). Restart policy keeps the container
+# running across droplet reboots.
+#
+# Standard ops:
+#   docker compose build        # build the image
+#   docker compose up -d        # start in background
+#   docker compose down         # stop + remove
+#   docker compose logs -f      # tail logs
+#   docker compose exec career-ops node scan.mjs
+#   docker compose exec career-ops node llm-eval.mjs --file jds/test-1.txt
+# ------------------------------------------------------------
+
+services:
+  career-ops:
+    build: .
+    container_name: career-ops
+    restart: unless-stopped
+
+    # Match host timezone for shell `date` and any TZ-aware logging.
+    # Note: JS `new Date().toISOString()` is always UTC regardless of TZ
+    # env var — if local-date semantics matter for closure detection,
+    # we'll revisit.
+    environment:
+      - TZ=America/New_York
+
+    volumes:
+      # -- Operational data (persist across rebuilds; written every run) --
+      - ./data:/app/data
+      - ./reports:/app/reports
+      - ./output:/app/output
+      - ./batch/logs:/app/batch/logs
+      - ./batch/tracker-additions:/app/batch/tracker-additions
+
+      # -- Test fixtures + manual JD pastes --
+      - ./jds:/app/jds
+
+      # -- Config files (editable from host without rebuilding the image) --
+      - ./cv.md:/app/cv.md
+      - ./config:/app/config
+      - ./modes:/app/modes
+      - ./portals.yml:/app/portals.yml
+
+      # -- Secrets (read-only — container shouldn't be able to write to .env) --
+      - ./.env:/app/.env:ro

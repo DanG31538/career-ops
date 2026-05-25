@@ -1,0 +1,65 @@
+# Don't ship host's node_modules — the image builds its own
+# (Linux binaries; the host may be Windows/macOS).
+node_modules
+package-lock.json
+
+# Operational data lives in volume mounts, not the image
+data
+reports
+output
+batch/logs
+batch/tracker-additions
+batch/batch-state.tsv
+
+# Secrets — volume-mounted from host at runtime
+.env
+.env.local
+.env.*.local
+
+# Git artifacts
+.git
+.gitignore
+.github
+
+# Test fixtures (mounted as a volume; no need in the image)
+jds
+
+# Editor / OS noise
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+
+# Docs the container doesn't need at runtime — keep image lean
+README*.md
+README.*.md
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+GOVERNANCE.md
+TRADEMARK.md
+LEGAL_DISCLAIMER.md
+SUPPORT.md
+CITATION.cff
+CONTRIBUTORS.md
+DATA_CONTRACT.md
+.coderabbit.yaml
+.envrc
+.release-please-manifest.json
+
+# Build artifacts from prior local Docker invocations
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Test files
+test-all.mjs
+
+# Other CLIs' config dirs
+.claude
+.claude-plugin
+.agents
+.qwen
+.github

@@ -67,20 +67,37 @@
 - [ ] batch/batch-runner.sh --dry-run confirmed working on Droplet (deferred until
       batch-input.tsv has real entries)
 
-## Phase 3 — Dockerize for Droplet 🔲 PENDING
-- [ ] Dockerfile written for career-ops Node/Go environment
-- [ ] docker-compose.yml written with career-ops service
-- [ ] Volume mounts configured:
-  - [ ] ./data
-  - [ ] ./output
-  - [ ] ./reports
-  - [ ] ./cv.md
-  - [ ] ./config/profile.yml
-  - [ ] Obsidian vault directory
-- [ ] restart policy: unless-stopped added
-- [ ] docker compose up tested on Droplet
-- [ ] Teardown and rebuild tested (portability verification)
-- [ ] PDF generation wired in (node generate-pdf.mjs post-eval)
+## Phase 3 — Dockerize for Droplet 🔲 IN PROGRESS
+- [x] Dockerfile written — Node 20-slim base, bash + ca-certificates + curl +
+      tzdata, npm install --omit=dev, CMD tail -f /dev/null (long-running
+      until Phase 5 swaps in Discord bot).
+- [x] docker-compose.yml written — single service `career-ops`,
+      restart: unless-stopped, TZ=America/New_York, no exposed ports.
+- [x] .dockerignore written — excludes node_modules, data/, reports/,
+      output/, .env, .git, docs, .claude, etc.
+- [x] Volume mounts configured:
+  - [x] ./data → /app/data (tracker, pipeline.md, scan-history.tsv)
+  - [x] ./reports → /app/reports
+  - [x] ./output → /app/output
+  - [x] ./batch/logs → /app/batch/logs
+  - [x] ./batch/tracker-additions → /app/batch/tracker-additions
+  - [x] ./jds → /app/jds
+  - [x] ./cv.md → /app/cv.md (editable from host)
+  - [x] ./config → /app/config (editable from host)
+  - [x] ./modes → /app/modes (editable from host)
+  - [x] ./portals.yml → /app/portals.yml (editable from host)
+  - [x] ./.env → /app/.env:ro (read-only secret mount)
+  - [ ] Obsidian vault directory — deferred to Phase 6
+- [x] restart policy: unless-stopped added
+- [ ] docker compose build + up tested on Droplet
+- [ ] docker compose exec career-ops node scan.mjs --dry-run produces same
+      result as bare-host scan
+- [ ] docker compose down + up restart-resilience test
+- [ ] PDF generation wired in (deferred — see "Application Accelerators"
+      discussion; PDF needs a tailor-cv.mjs script that doesn't exist yet)
+- [ ] Note: Dockerfile is Node-only. dashboard/ (Go-based TUI viewer) is
+      a separate, optional component that runs on the user's local machine,
+      not the droplet. Not part of this image.
 
 ## Phase 4 — Personalize Profile ✅ COMPLETE
 - [x] cv.md created with Dan's full resume in markdown
@@ -118,8 +135,15 @@
       based companies omitted (would be silent no-ops without Playwright).
 - [x] Clarified scan.mjs status — already works standalone, no rewrite needed.
       Pipeline processor (JD-fetch + invoke llm-eval.mjs) deferred to Phase 5.
-- [ ] **NEXT: Commit + push Phase 4 files to GitHub**
-- [ ] Pull Phase 4 files on Droplet + verify llm-eval.mjs + scan.mjs work there
+- [x] User-layer files unblocked from .gitignore (cv.md, config/profile.yml,
+      portals.yml, modes/_profile.md) — appropriate for private fork.
+- [x] Phase 4 files committed + pushed to GitHub.
+- [x] Pulled on Droplet — scan.mjs --dry-run found 104 ML-relevant new offers
+      across 34 companies (2904 jobs found → 2628 title-filtered → 171
+      location-filtered → 1 dedup → 104 added to pipeline.md). End-to-end
+      autonomous scan flow confirmed working.
+- [ ] Minor cleanup later: Runway's Greenhouse slug is stale (returns 404).
+      Either find the new slug or set `enabled: false` in portals.yml.
 
 ## Phase 5 — Discord Integration 🔲 PENDING
 - [ ] Discord webhook script written (Node.js)
