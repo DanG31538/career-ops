@@ -95,16 +95,46 @@ on the Droplet.
 
 ### Personalization (Phase 4 — Dan's profile)
 - **cv.md** — Dan's resume in clean markdown (Summary, 4 work entries, Service,
-  Education, Skills). Read by `llm-eval.mjs` on every eval.
+  Education, Skills). Read by `llm-eval.mjs` on every eval. PNC end date is
+  April 2026; status is "Open to work — actively job searching".
 - **config/profile.yml** — Dan's target roles, archetype list, comp targets
   ($120K base floor), location prefs (Remote > NYC > Pittsburgh), dealbreakers
   (off-list locations, clearance roles, sub-floor comp), work auth (US citizen,
-  no clearance, Guard veteran), 7yr experience signaling.
-- **modes/_profile.md** — Dan's 8 ML archetypes (MLOps, NLP, CV, Generative AI,
-  Edge AI, Data Scientist, Research Engineer, Applied ML generalist), adaptive
-  framing table mapping each archetype to which PNC/Four Growers/research proof
-  points to emphasize, cross-cutting advantage narrative, location-policy
-  scoring rules, negotiation scripts adapted to Dan's situation.
+  no clearance, Guard veteran), 7yr experience signaling, current_status field.
+- **modes/_profile.md** — Dan's 8 ML archetypes + MANDATORY OVERRIDES section
+  at top (Title-Based Role-Shape Caps, Closed Posting Policy, Hard SKIP rules),
+  adaptive framing table mapping each archetype to which PNC/Four Growers/
+  research proof points to emphasize, cross-cutting advantage narrative,
+  location-policy scoring rules, negotiation scripts.
+- **portals.yml** — ~30 ML/AI-relevant companies on Greenhouse/Ashby/Lever
+  with `location_filter` allowing Remote/NYC/Pittsburgh, blocking EU/Asia/etc.
+
+### Application Accelerators (Phase 5a — CLI scripts)
+- **tailor-cv.mjs** — Per-JD tailored resume generator. Parses cv.md
+  deterministically (via lib/parse-cv.mjs, with stable IDs on every bullet
+  and skill category), then asks the LLM only for MODIFICATIONS (bullet
+  reordering by ID, optional bullet rewrites, summary rewrite, competencies,
+  skills reorder). The LLM physically cannot drop content because the code
+  holds the canonical list. Output: output/cv-{company}-{date}.pdf.
+- **draft-application.mjs** — Cover letter + custom-question drafter. Takes
+  `--personal "..."` flag for the candidate's genuine connection to the
+  company; uses that as the foundation for ¶1 (human relation), ¶2 (synthesis
+  of expertise + company), ¶3 (available + interest). Voice/register prompt
+  enforces "sharp engineer to peer over coffee, never candidate to hiring
+  committee". Output: output/application-{company}-{date}.md.
+- **lib/parse-cv.mjs** — Deterministic cv.md parser shared by tailor + draft.
+- **lib/strip-html.mjs** — HTML→plain-text utility for fetched JD content.
+
+### Pipeline Processor (Phase 5b.1 — autonomous bridge)
+- **process-pipeline.mjs** — Reads data/pipeline.md for pending URLs.
+  For each: resolves the ATS via providers/* detect(), calls the provider's
+  fetchJobDetail(url) to get JD body text, saves to jds/auto-*.txt, spawns
+  llm-eval.mjs in batch mode → reports appear in reports/. Marks URLs [x]
+  in pipeline.md and logs every outcome to data/pipeline-log.tsv.
+  Supports --dry-run, --limit, --auto-tailor <score>.
+- **providers/{ashby,greenhouse,lever}.mjs** — Extended with
+  fetchJobDetail(url, ctx) methods that hit per-job endpoints (or list
+  endpoint for Ashby) and return {title, location, text, url}.
 
 ## What Still Needs To Be Built
 See CHECKLIST.md for full status. Summary:

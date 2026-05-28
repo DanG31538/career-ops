@@ -16,7 +16,10 @@
     "liveness": "node check-liveness.mjs",
     "scan": "node scan.mjs",
     "gemini:eval": "node gemini-eval.mjs",
-    "llm:eval": "node llm-eval.mjs"
+    "llm:eval": "node llm-eval.mjs",
+    "tailor": "node tailor-cv.mjs",
+    "draft": "node draft-application.mjs",
+    "process": "node process-pipeline.mjs"
   },
   "keywords": [
     "ai",

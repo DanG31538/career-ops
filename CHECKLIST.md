@@ -67,7 +67,7 @@
 - [ ] batch/batch-runner.sh --dry-run confirmed working on Droplet (deferred until
       batch-input.tsv has real entries)
 
-## Phase 3 — Dockerize for Droplet 🔲 IN PROGRESS
+## Phase 3 — Dockerize for Droplet ✅ COMPLETE
 - [x] Dockerfile written — Node 20-slim base, bash + ca-certificates + curl +
       tzdata, npm install --omit=dev, CMD tail -f /dev/null (long-running
       until Phase 5 swaps in Discord bot).
@@ -89,15 +89,18 @@
   - [x] ./.env → /app/.env:ro (read-only secret mount)
   - [ ] Obsidian vault directory — deferred to Phase 6
 - [x] restart policy: unless-stopped added
-- [ ] docker compose build + up tested on Droplet
-- [ ] docker compose exec career-ops node scan.mjs --dry-run produces same
-      result as bare-host scan
-- [ ] docker compose down + up restart-resilience test
-- [ ] PDF generation wired in (deferred — see "Application Accelerators"
-      discussion; PDF needs a tailor-cv.mjs script that doesn't exist yet)
-- [ ] Note: Dockerfile is Node-only. dashboard/ (Go-based TUI viewer) is
-      a separate, optional component that runs on the user's local machine,
-      not the droplet. Not part of this image.
+- [x] docker compose build + up tested on Droplet
+- [x] docker compose exec career-ops node scan.mjs --dry-run produced same
+      104-offer result as bare-host scan (confirms config mounts work)
+- [x] docker compose exec career-ops node llm-eval.mjs (inline JD) →
+      4.8/5 eval, full A-G report saved to mounted reports/ (confirms
+      OpenRouter API + .env mount + LLM logic all work through container)
+- [x] docker compose down + up restart-resilience test passed — container
+      came back cleanly, reports/ survived (volume persistence verified)
+- [ ] PDF generation wired in (deferred — needs tailor-cv.mjs script;
+      not part of base Phase 3 close)
+- Note: Dockerfile is Node-only. dashboard/ (Go-based TUI viewer) runs
+  on the user's local machine, not the droplet — separate component.
 
 ## Phase 4 — Personalize Profile ✅ COMPLETE
 - [x] cv.md created with Dan's full resume in markdown
@@ -145,7 +148,119 @@
 - [ ] Minor cleanup later: Runway's Greenhouse slug is stale (returns 404).
       Either find the new slug or set `enabled: false` in portals.yml.
 
-## Phase 5 — Discord Integration 🔲 PENDING
+## Phase 5 — Application Accelerators + Discord Integration 🔲 IN PROGRESS
+
+### Sub-phase 5a — Application Accelerators (CLI-usable scripts)
+- [x] tailor-cv.mjs created (modify-in-place architecture, ID-based).
+      Iteration history (kept for context):
+      - v1: Asked LLM to regenerate all CV content as JSON. LLM dropped 1-2
+        bullets per run; CMU + LLNL frequently went missing.
+      - v2: Tightened prompt rules ("include every bullet"). Helped but
+        still unreliable — LLMs are bad at recall tasks.
+      - v3 (current): Parse cv.md deterministically in code → ask LLM only
+        for MODIFICATIONS (bullet reordering + targeted rewrites + new
+        summary + competencies + skills reorder). Code holds the canonical
+        list; LLM physically cannot drop content.
+      - v4 (current): Stable IDs assigned at parse time (exp-1, b-exp-1-3,
+        skill-2, etc). LLM references entities by ID, not by position or
+        company-name fuzzy match. Survives cv.md edits + reorderings.
+      Plus: response_format: { type: 'json_object' } for first-attempt JSON
+      reliability, console log of parse + apply reports for transparency,
+      Service section (Army National Guard) rendered as oldest Experience
+      entry, empty Projects/Certifications sections auto-stripped.
+- [x] lib/parse-cv.mjs extracted — shared cv.md parser used by both
+      tailor-cv.mjs and draft-application.mjs (avoids drift between two
+      copies of the parsing logic).
+- [x] draft-application.mjs created — drafts a cover letter (always) and
+      custom question answers (when --questions or --questions-file is
+      passed). Output: output/application-{company-slug}-{date}.md.
+      Iterated heavily on voice/register:
+      - v1: Truthfulness rules + tone bans on corporate filler
+      - v2: Added CASE A/B for hooks depending on personal context
+      - v3: Added --personal / --personal-file flags (LLM can't know
+        candidate's connection to a company without being told)
+      - v4: Restructured prompt entirely around user's 3-paragraph base
+        (¶1 personal relation, ¶2 synthesis of expertise + company,
+        ¶3 available + interest). Removed PROOF section that was
+        causing resume-recap. Explicit FORBIDDEN PHRASES list incl.
+        metrics, named employers in body, "your JD's focus on...".
+      - v5: Added VOICE & REGISTER section — "sharp engineer to
+        respected colleague over coffee, not candidate to hiring
+        committee". 5 soft→sharp sentence rewrites with verbatim
+        examples. Personal context is now the FOUNDATION of the
+        whole letter, not just ¶1's opener.
+      User verdict: "good enough — provides a good foundation; will
+      edit myself for actual submission." Realistic for AI-drafted
+      communication.
+- [ ] Refactor llm-eval.mjs to export an evaluate() function — DEFERRED.
+      Subprocess pattern (`spawn('node', ['llm-eval.mjs', ...])`) works
+      fine and is what batch-runner.sh already uses. Refactor only if
+      Discord bot perf becomes an issue (unlikely — ~100ms spawn overhead
+      vs 10-30s LLM call is noise).
+
+### Sub-phase 5b.1 — Pipeline Processor (the bridge between scan and eval)
+- [x] lib/strip-html.mjs created — shared HTML→plain-text utility.
+- [x] providers/greenhouse.mjs extended with fetchJobDetail(url, ctx) —
+      hits the per-job boards-api endpoint (?content=true), strips HTML.
+- [x] providers/ashby.mjs extended with fetchJobDetail(url, ctx) — uses
+      the posting-api list endpoint and finds the job by ID/URL match.
+- [x] providers/lever.mjs extended with fetchJobDetail(url, ctx) — hits
+      api.lever.co/v0/postings/{co}/{id}?mode=json, assembles description
+      + lists[] content.
+- [x] process-pipeline.mjs created — reads data/pipeline.md, fetches each
+      JD via the matching provider, spawns llm-eval.mjs in batch mode,
+      optionally spawns tailor-cv.mjs for high-scoring offers, marks URLs
+      processed in pipeline.md, logs every outcome to
+      data/pipeline-log.tsv. Supports --dry-run, --limit, --auto-tailor.
+- [x] Tested process-pipeline.mjs end-to-end on local Windows machine.
+      - Bootstrap fix: scan.mjs requires data/pipeline.md to exist before
+        writing to it; created an empty stub with ## Pendientes / ## Procesadas
+        sections.
+      - scan.mjs found 103 ML-relevant offers across 34 tracked companies.
+      - process-pipeline.mjs --limit 3 ran cleanly: fetched JDs via the
+        right providers (Ashby for Cohere, Greenhouse for Hume), saved
+        each to jds/auto-NNN-*.txt, spawned llm-eval.mjs in batch mode,
+        marked URLs [x] in pipeline.md, logged to data/pipeline-log.tsv.
+      - 3/3 completed: Cohere Staff Research Engineer 3.0/5 (title cap
+        fired correctly), Cohere Lead Data Scientist ?/5 (LLM didn't
+        produce parseable SCORE_SUMMARY — minor tuning issue), Hume AI
+        Senior/Staff AI Research Engineer 4.2/5 (cap did NOT fire here,
+        even though "Senior/Staff" + "Research Engineer" should trigger
+        Override 1 — also minor tuning issue).
+- [ ] **Known minor issues to revisit:**
+      (a) Title cap inconsistency — fires for Cohere "Staff Research
+          Engineer" but not Hume "Senior/Staff AI Research Engineer".
+          Likely the trailing "Engineer" + intermediate "AI" confuses the
+          pattern match. May need to broaden the regex or strengthen the
+          rule in modes/_profile.md.
+      (b) SCORE_SUMMARY occasionally missing — LLM output didn't include
+          the parseable block for the Cohere DS role. Worth checking the
+          report file to see what the LLM actually output, and possibly
+          tightening the prompt's mandatory-summary rule.
+- [ ] Wire process-pipeline.mjs on cron (overnight schedule) — Phase 7.
+
+### Sub-phase 5b.2 — Discord Bot (human interface)
+- [ ] Install discord.js (npm dep, ~6MB)
+- [ ] discord-bot.mjs — long-running bot. Two main jobs:
+      (a) Post daily digest to #pipeline-status with overnight scan + eval
+          summary ("12 new evaluations overnight, 3 above 4.0/5")
+      (b) Post individual high-scoring evals to #job-alerts with attached
+          tailored PDF + ✅/❌ reactions; reactions trigger draft and
+          tracker updates
+- [ ] Handle manual paste-a-URL workflow (--personal context via thread reply)
+- [ ] Reaction handler — ✅ updates tracker status to Applied,
+      ❌ → Discarded
+- [ ] docker-compose.yml — CMD swap from tail to `node discord-bot.mjs`
+- [ ] Test full loop
+
+### Sub-phase 5c — Form-fill (deferred, optional)
+
+### Sub-phase 5c — Form-fill (deferred, optional)
+- [ ] Not in scope for now — Playwright-based form filling is brittle and
+      risks ATS account flags. Will revisit only if/when 5a+5b stabilize and
+      Dan decides the last ~15-20% of labor reduction is worth it.
+
+## Phase 5 (legacy items, will fold into above)
 - [ ] Discord webhook script written (Node.js)
   - [ ] Posts to #job-alerts when scanner finds match above threshold
   - [ ] Posts to #needs-input for custom questions

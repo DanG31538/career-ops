@@ -4,6 +4,8 @@
 // Greenhouse provider — hits the public boards-api JSON endpoint.
 // Handles both explicit `api:` URLs and auto-detection from `careers_url`.
 
+import { stripHtml } from '../lib/strip-html.mjs';
+
 const ALLOWED_GREENHOUSE_HOSTS = new Set([
   'boards-api.greenhouse.io',
   'boards.greenhouse.io',
@@ -58,5 +60,29 @@ export default {
       company: entry.name,
       location: j.location?.name || '',
     }));
+  },
+
+  /**
+   * Fetch a single job's full content from a Greenhouse job URL.
+   * URL shape: https://job-boards.greenhouse.io/{company}/jobs/{job_id}
+   * (or boards.greenhouse.io / job-boards.eu.greenhouse.io)
+   * API:       https://boards-api.greenhouse.io/v1/boards/{company}/jobs/{job_id}?content=true
+   *
+   * Returns { title, location, text, url } where text is plain text (HTML stripped).
+   * Throws on 404 (job no longer exists), other HTTP errors, or unparseable URL.
+   */
+  async fetchJobDetail(url, ctx) {
+    const m = url.match(/(?:job-boards|boards)(?:\.eu)?\.greenhouse\.io\/([^/?#]+)\/jobs\/(\d+)/);
+    if (!m) throw new Error(`greenhouse: cannot parse job URL: ${url}`);
+    const [, company, jobId] = m;
+    const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${company}/jobs/${jobId}?content=true`;
+    assertGreenhouseUrl(apiUrl);
+    const json = await ctx.fetchJson(apiUrl, { redirect: 'error' });
+    return {
+      title: json.title || '',
+      location: json.location?.name || '',
+      text: stripHtml(json.content || ''),
+      url: json.absolute_url || url,
+    };
   },
 };
