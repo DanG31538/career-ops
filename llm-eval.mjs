@@ -407,15 +407,35 @@ Override 3 in the candidate profile for closure handling.
    - For Block G (Legitimacy): analyze the JD text only; skip URL/page freshness checks (mark as "unverified (batch mode)").
    - Post-evaluation file saving is handled by the script, not by you.
 2. Generate Blocks A through G in full, in English, unless the JD is in another language.
-3. At the very end, output a machine-readable summary block in this exact format:
+3. At the very end of your response, output a machine-readable summary block.
+   This is MANDATORY — a downstream parser depends on the EXACT format below.
+
+   FORMAT RULES (every one is required — no exceptions):
+   - The opening line MUST be the literal seven characters: ---SCORE_SUMMARY---
+   - DO NOT use a markdown heading (no "## SCORE_SUMMARY", no "# SCORE_SUMMARY",
+     no "**SCORE_SUMMARY**", no "### Score Summary"). The triple-dash on both
+     sides of the word is required.
+   - DO NOT add bold markers, italics, or any markdown formatting around field
+     names or values.
+   - Each field is on its own line: KEY (uppercase) + ": " (colon + single space)
+     + value. No bullets, no indentation, no extra spaces.
+   - The closing line MUST be the literal: ---END_SUMMARY---
+   - Nothing (no keywords section, no notes, no markdown headings) may appear
+     between the opening and closing delimiters.
+
+   EXACT EXAMPLE (copy this format verbatim, substituting only the values):
 
 ---SCORE_SUMMARY---
-COMPANY: <company name or "Unknown">
-ROLE: <role title>
-SCORE: <global score as decimal, e.g. 3.8>
-ARCHETYPE: <detected archetype>
-LEGITIMACY: <High Confidence | Proceed with Caution | Suspicious>
+COMPANY: Acme Robotics
+ROLE: Senior ML Engineer
+SCORE: 4.2
+ARCHETYPE: Applied ML Engineer
+LEGITIMACY: High Confidence
 ---END_SUMMARY---
+
+   All five fields above are REQUIRED. SCORE must be a decimal number
+   (e.g. 3.0, 4.2 — not "4.2/5", not "?", not a range). LEGITIMACY must be
+   exactly one of: High Confidence | Proceed with Caution | Suspicious | Closed/Expired.
 `;
 
 // ---------------------------------------------------------------------------
@@ -508,36 +528,101 @@ if (!isBatchMode) {
 }
 
 // ---------------------------------------------------------------------------
-// Parse score summary
+// Parse score summary — tiered, tolerant of LLM format drift.
+//
+// We've seen Llama 3.3 70B drift in two specific ways:
+//   1. Replacing the opening "---SCORE_SUMMARY---" with "## SCORE_SUMMARY"
+//      (markdown heading) while keeping "---END_SUMMARY---" intact.
+//   2. Adding a "Keywords extracted" or similar section between the eval body
+//      and the summary block.
+//
+// Strategy:
+//   Tier 1 — strict delimited block (the format the prompt asks for).
+//   Tier 2 — permissive delimiters (any heading-style opener + the literal closer,
+//            or the literal opener + any heading-style closer, or both heading-style).
+//   Tier 3 — last-resort field scrape: search the whole output for KEY: value
+//            lines anchored to start-of-line. Only used if Tier 1 and Tier 2 fail.
+//
+// If ALL tiers fail to find a SCORE, the file is written with sentinel "?" and
+// downstream parsers (lib/parse-report.mjs) will refuse to treat it as a score.
 // ---------------------------------------------------------------------------
-const summaryMatch = evaluationText.match(
-  /---SCORE_SUMMARY---\s*([\s\S]*?)---END_SUMMARY---/
-);
+function parseSummary(text) {
+  let block = null;
+  let tier  = 3;  // assume worst until proven otherwise
 
-let company    = 'unknown';
-let role       = 'unknown';
-let score      = '?';
-let archetype  = 'unknown';
-let legitimacy = 'unknown';
+  // Tier 1: strict — the exact format the prompt asks for.
+  const strict = text.match(/---SCORE_SUMMARY---\s*([\s\S]*?)\s*---END_SUMMARY---/);
+  if (strict) {
+    block = strict[1];
+    tier  = 1;
+  }
 
-if (summaryMatch) {
-  const block = summaryMatch[1];
-  const extract = (key) => {
-    const prefix = `${key}:`;
-    const lines = block.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trimStart();
-      if (trimmed.startsWith(prefix)) {
-        return trimmed.slice(prefix.length).trim();
+  // Tier 2: permissive delimiters. Try each opener × closer pair.
+  if (!block) {
+    const openers = [
+      String.raw`---SCORE_SUMMARY---`,
+      String.raw`#{1,4}\s*SCORE[_ ]SUMMARY`,        // ## SCORE_SUMMARY, # Score Summary, etc.
+      String.raw`\*{1,2}SCORE[_ ]SUMMARY\*{1,2}`,    // **SCORE_SUMMARY**
+    ];
+    const closers = [
+      String.raw`---END_SUMMARY---`,
+      String.raw`#{1,4}\s*END[_ ]SUMMARY`,
+      String.raw`\*{1,2}END[_ ]SUMMARY\*{1,2}`,
+    ];
+    outer: for (const open of openers) {
+      for (const close of closers) {
+        const m = text.match(new RegExp(`${open}\\s*([\\s\\S]*?)\\s*${close}`, 'i'));
+        if (m) { block = m[1]; tier = 2; break outer; }
       }
     }
-    return 'unknown';
+  }
+
+  // Tier 3 source: if we got nothing, scan the whole evaluation text.
+  // Risk: matching prose like "the company values..." — mitigated by requiring
+  // KEY at start-of-line and uppercase.
+  const source = block || text;
+  const extract = (key) => {
+    const re = new RegExp(`^\\s*\\**\\s*${key}\\s*\\**\\s*:\\s*(.+?)\\s*$`, 'im');
+    const m = source.match(re);
+    if (!m) return null;
+    return m[1].replace(/^\**\s*/, '').replace(/\s*\**$/, '').trim();
   };
-  company    = extract('COMPANY');
-  role       = extract('ROLE');
-  score      = extract('SCORE');
-  archetype  = extract('ARCHETYPE');
-  legitimacy = extract('LEGITIMACY');
+
+  return {
+    company:    extract('COMPANY'),
+    role:       extract('ROLE'),
+    score:      extract('SCORE'),
+    archetype:  extract('ARCHETYPE'),
+    legitimacy: extract('LEGITIMACY'),
+    tier,
+  };
+}
+
+// Score sanitization: must be a bare decimal between 0 and 5. Reject "?", "n/a",
+// "4.2/5", ranges, prose. Bot's lib/parse-report.mjs will reject anything that
+// doesn't anchor-match a leading number, so this is belt-and-suspenders.
+function sanitizeScore(raw) {
+  if (!raw) return '?';
+  const m = String(raw).trim().match(/^(\d+(?:\.\d+)?)/);
+  if (!m) return '?';
+  const n = parseFloat(m[1]);
+  if (isNaN(n) || n < 0 || n > 5) return '?';
+  return m[1];
+}
+
+const parsed = parseSummary(evaluationText);
+
+let company    = parsed.company    || 'unknown';
+let role       = parsed.role       || 'unknown';
+let score      = sanitizeScore(parsed.score);
+let archetype  = parsed.archetype  || 'unknown';
+let legitimacy = parsed.legitimacy || 'unknown';
+
+if (parsed.tier > 1) {
+  logInfo(`⚠️   SCORE_SUMMARY parser fell back to tier ${parsed.tier} (LLM drifted from required format).`);
+}
+if (score === '?') {
+  logInfo(`⚠️   Could not extract a valid SCORE — report will be written with sentinel "?/5".`);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,16 +1,17 @@
 # career-ops Docker Compose
 # ------------------------------------------------------------
-# Single service. No web ports exposed (Discord is outbound-
-# only, no inbound needed). Restart policy keeps the container
-# running across droplet reboots.
+# Single service running the Discord bot as the main process.
+# Outbound-only — no web ports exposed. Restart policy keeps the
+# container running across droplet reboots.
 #
 # Standard ops:
 #   docker compose build        # build the image
 #   docker compose up -d        # start in background
 #   docker compose down         # stop + remove
-#   docker compose logs -f      # tail logs
+#   docker compose logs -f      # tail bot logs
 #   docker compose exec career-ops node scan.mjs
 #   docker compose exec career-ops node llm-eval.mjs --file jds/test-1.txt
+#   docker compose exec career-ops node process-pipeline.mjs --dry-run
 # ------------------------------------------------------------
 
 services:
@@ -18,6 +19,12 @@ services:
     build: .
     container_name: career-ops
     restart: unless-stopped
+
+    # Long-running process: the Discord bot. Phase 5b.2 swapped this
+    # from the Dockerfile's `tail -f /dev/null` placeholder. To drop
+    # back to the placeholder for debugging via `exec`, comment out
+    # this `command:` and `docker compose up -d --force-recreate`.
+    command: ["node", "discord-bot.mjs"]
 
     # Match host timezone for shell `date` and any TZ-aware logging.
     # Note: JS `new Date().toISOString()` is always UTC regardless of TZ

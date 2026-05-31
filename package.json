@@ -19,7 +19,8 @@
     "llm:eval": "node llm-eval.mjs",
     "tailor": "node tailor-cv.mjs",
     "draft": "node draft-application.mjs",
-    "process": "node process-pipeline.mjs"
+    "process": "node process-pipeline.mjs",
+    "bot": "node discord-bot.mjs"
   },
   "keywords": [
     "ai",
@@ -37,6 +38,7 @@
   "license": "MIT",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "discord.js": "^14.26.4",
     "dotenv": "^17.0.0",
     "js-yaml": "^4.1.1",
     "openai": "^4.73.0",

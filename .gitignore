@@ -4,6 +4,8 @@
 data/applications.md
 data/pipeline.md
 data/scan-history.tsv
+data/pipeline-log.tsv
+data/discord-state.json
 reports/*.md
 !reports/.gitkeep
 output/*
