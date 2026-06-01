@@ -41,8 +41,8 @@ import { Client, GatewayIntentBits, Partials, ChannelType, Events } from 'discor
 import { parseReport } from './lib/parse-report.mjs';
 import {
   loadState, saveState,
-  markPosted, markDecision, findPostedByMessageId,
-  registerPendingThread, clearPendingThread,
+  markPosted, markDecision, findPostedByMessageId, findPostedByUrl,
+  registerPendingThread, updatePendingThread, clearPendingThread,
   isReportPosted,
 } from './lib/discord-state.mjs';
 import { postEval } from './lib/post-eval.mjs';
@@ -380,10 +380,13 @@ async function handleApproveReaction({ message, reportFile }) {
   registerPendingThread(state, thread.id, reportFile, 'awaiting_personal');
   persist();
 
+  const company = state.posted[reportFile]?.company || 'this company';
   await thread.send({
     content:
-      `Reply in this thread with **1–2 sentences of your genuine connection to ${state.posted[reportFile]?.company || 'this company'}** ` +
-      `(used as the foundation of the cover letter), or reply **\`skip\`** to draft without personal context.`,
+      `Choose how to proceed:\n` +
+      `• Reply with **1–2 sentences of your genuine connection to ${company}** → drafts the cover letter with that as the hook\n` +
+      `• Reply **\`skip\`** → drafts the cover letter without personal context\n` +
+      `• Reply **\`none\`** → marks as applied without drafting a cover letter (write your own)`,
   });
 }
 
@@ -402,12 +405,19 @@ async function handleRejectReaction({ message, reportFile }) {
 async function handleMessageCreate(msg) {
   if (msg.author.bot) return;
 
-  // (A) Reply in a pending thread → drive draft-application.mjs
+  // (A) Reply in a pending thread → drive draft-application.mjs.
+  //     Dispatch on phase: awaiting_personal = first draft; awaiting_revision = iteration.
   if (msg.channel.type === ChannelType.PublicThread || msg.channel.type === ChannelType.PrivateThread) {
     const pending = state.pendingThreads[msg.channel.id];
-    if (pending && pending.phase === 'awaiting_personal') {
-      await handleThreadPersonalReply(msg, pending);
-      return;
+    if (pending) {
+      if (pending.phase === 'awaiting_personal') {
+        await handleThreadPersonalReply(msg, pending);
+        return;
+      }
+      if (pending.phase === 'awaiting_revision') {
+        await handleThreadRevisionReply(msg, pending);
+        return;
+      }
     }
   }
 
@@ -423,7 +433,16 @@ async function handleMessageCreate(msg) {
 
 async function handleThreadPersonalReply(msg, pending) {
   const personal = msg.content.trim();
-  const skip = personal.toLowerCase() === 'skip';
+  const lower = personal.toLowerCase();
+
+  // Three branches based on keyword:
+  //   - 'skip' (or 'skip context') → draft cover letter without personal hook
+  //   - 'none' / 'nodraft' / 'no draft' / 'no letter' → mark applied, no draft
+  //   - anything else → treat as personal context, full draft
+  // We deliberately don't accept bare 'no' as a no-draft trigger because it's
+  // too easy to type when actually composing personal context ("No, what I meant...").
+  const skip    = lower === 'skip' || lower === 'skip context';
+  const noDraft = lower === 'none' || lower === 'nodraft' || lower === 'no draft' || lower === 'no letter';
 
   // Mark thread as no longer awaiting (prevent double-handling on rapid replies)
   clearPendingThread(state, msg.channel.id);
@@ -431,12 +450,22 @@ async function handleThreadPersonalReply(msg, pending) {
 
   const posted = state.posted[pending.reportFile];
   if (!posted) {
-    await msg.channel.send(`⚠️  Internal: I lost track of the report for this thread. Aborting draft.`);
+    await msg.channel.send(`⚠️  Internal: I lost track of the report for this thread. Aborting.`);
     return;
   }
-  // Mark applied decision now — user explicitly approved.
+  // Mark applied decision now — user explicitly approved. Same decision for
+  // all three branches (skip / noDraft / context) — they all express intent
+  // to apply; only the cover-letter generation differs.
   markDecision(state, pending.reportFile, 'applied');
   persist();
+
+  if (noDraft) {
+    await msg.channel.send(
+      `✅ Marked **${posted.company || 'this role'}** as applied. ` +
+      `No cover letter drafted — write your own when you're ready.`
+    );
+    return;
+  }
 
   await msg.channel.send(skip
     ? `Drafting without personal context — this will take ~30s.`
@@ -457,13 +486,103 @@ async function handleThreadPersonalReply(msg, pending) {
       personal: skip ? null : personal,
     });
     await postDraftToThread(msg.channel, draftPath);
+
+    // Transition the thread into revision mode so the user can iterate on the
+    // draft without having to start a brand-new ✅ flow. The pending entry
+    // sticks around (with phase + lastDraftPath + jdPath) until they reply
+    // `done`. After 'done', subsequent messages are ignored (thread auto-archives
+    // in 24h per startThread's autoArchiveDuration).
+    registerPendingThread(state, msg.channel.id, pending.reportFile, 'awaiting_revision');
+    updatePendingThread(state, msg.channel.id, {
+      lastDraftPath: draftPath,
+      jdPath,
+      revisionCount: 0,
+    });
+    persist();
+
+    await msg.channel.send(
+      `Reply with revisions to iterate on the draft ` +
+      `(e.g. \`shorten ¶2\`, \`drop the security sentence\`, \`make ¶1 less formal\`), ` +
+      `or reply \`done\` to close out.`
+    );
   } catch (err) {
     await msg.channel.send(`❌  Draft failed: \`${err.message.slice(0, 300)}\``);
   }
 }
 
+async function handleThreadRevisionReply(msg, pending) {
+  const feedback = msg.content.trim();
+  const lower = feedback.toLowerCase();
+
+  // 'done' (or near-synonyms) closes the loop. We don't archive the thread
+  // manually — let Discord's autoArchiveDuration (24h) handle it. The user
+  // can still revive the thread with another reply within that window if
+  // they realize they want one more revision.
+  if (lower === 'done' || lower === 'good' || lower === 'finished' || lower === 'looks good') {
+    clearPendingThread(state, msg.channel.id);
+    persist();
+    logInfo(`Revision loop closed for ${pending.reportFile} after ${pending.revisionCount || 0} revision(s).`);
+    await msg.channel.send(
+      `✅ Closed out. Edit the markdown yourself before submitting. ` +
+      `Reach back out by reacting ✅ on the original post if you need to restart.`
+    );
+    return;
+  }
+
+  // Sanity-check we still have everything we need to revise.
+  if (!pending.lastDraftPath || !pending.jdPath) {
+    await msg.channel.send(`⚠️  Internal: I lost the draft path or JD path for this thread. Reply with \`done\` to close.`);
+    return;
+  }
+
+  const newCount = (pending.revisionCount || 0) + 1;
+  logInfo(`Revision #${newCount} on ${pending.reportFile}: "${feedback.slice(0, 80)}${feedback.length > 80 ? '...' : ''}"`);
+  await msg.channel.send(`Applying revision #${newCount} — ~30s.`);
+
+  try {
+    const newDraftPath = await spawnDraftApplication({
+      jdPath:     pending.jdPath,
+      company:    state.posted[pending.reportFile]?.company,
+      reviseFrom: pending.lastDraftPath,
+      feedback,
+    });
+    await postDraftToThread(msg.channel, newDraftPath);
+
+    updatePendingThread(state, msg.channel.id, {
+      lastDraftPath: newDraftPath,
+      revisionCount: newCount,
+    });
+    persist();
+  } catch (err) {
+    logError(`Revision failed for ${pending.reportFile}: ${err.message}`);
+    await msg.channel.send(`❌  Revision failed: \`${err.message.slice(0, 300)}\`. Try again, or reply \`done\` to close.`);
+  }
+}
+
 async function handlePastedUrl(msg, url) {
   logInfo(`Pasted URL in #job-alerts: ${url}`);
+
+  // Dedup: have we processed this URL before? Reply with the prior outcome
+  // (+ jump link if it was actually posted) instead of burning LLM tokens
+  // re-evaluating. URL normalization handles trailing slashes + tracking params.
+  const prior = findPostedByUrl(state, url);
+  if (prior) {
+    const e = prior.entry;
+    const scoreStr = e.score != null ? `${e.score.toFixed(1)}/5` : '?/5';
+    const title = `${e.company || 'unknown'} — ${e.role || 'unknown'}`;
+    const when  = e.postedAt ? e.postedAt.slice(0, 10) : 'previously';
+    let body = `🔁 Already evaluated **${title}** on ${when}: **${scoreStr}**`;
+    if (e.messageId && e.channelId && e.guildId) {
+      body += ` → [jump](https://discord.com/channels/${e.guildId}/${e.channelId}/${e.messageId})`;
+    } else {
+      body += ` (sub-threshold or watermarked at startup — never posted to #job-alerts)`;
+    }
+    if (e.decision) body += `\nDecision: \`${e.decision}\``;
+    await msg.reply(body);
+    await msg.react('🔁');
+    return;
+  }
+
   await msg.react('⏳');
   try {
     const result = await processOneUrl(url, {
@@ -522,11 +641,13 @@ function findJdForBatchId(_posted, reportFile) {
   return match ? join(jdsDir, match) : null;
 }
 
-function spawnDraftApplication({ jdPath, company, personal }) {
+function spawnDraftApplication({ jdPath, company, personal, reviseFrom, feedback }) {
   return new Promise((resolve, reject) => {
     const args = [DRAFT_SCRIPT, '--file', jdPath];
-    if (company)  args.push('--company', company);
-    if (personal) args.push('--personal', personal);
+    if (company)    args.push('--company', company);
+    if (personal)   args.push('--personal', personal);
+    if (reviseFrom) args.push('--revise-from', reviseFrom);
+    if (feedback)   args.push('--feedback', feedback);
 
     const child = spawn('node', args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
@@ -535,9 +656,10 @@ function spawnDraftApplication({ jdPath, company, personal }) {
     child.stderr.on('data', d => { stderr += d.toString(); });
     child.on('exit', (code) => {
       if (code !== 0) return reject(new Error(`draft-application exited ${code}; ${stderr.trim().slice(0, 200)}`));
-      // draft-application.mjs prints "Markdown: <path>" or similar at the end.
+      // Match the "Output:    <path>" line draft-application prints. Also
+      // tolerate a bare path that ends in .md if the format ever shifts.
       const m = stdout.match(/(?:Markdown|Output|Written|Saved):\s+(\S+\.md)/i)
-             || stdout.match(/(output\/application-\S+\.md)/);
+             || stdout.match(/(output[\/\\]application-\S+\.md)/);
       if (!m) return reject(new Error(`draft-application produced no recognizable output path. stdout tail: ${stdout.trim().slice(-200)}`));
       resolve(m[1]);
     });

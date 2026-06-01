@@ -17,7 +17,6 @@ target_roles:
   primary:
     - "Machine Learning Engineer"
     - "Senior ML Engineer"
-    - "Staff ML Engineer"
     - "MLOps Engineer"
     - "NLP Engineer"
     - "Computer Vision Engineer"
@@ -26,19 +25,19 @@ target_roles:
   # See modes/_profile.md for the full archetype definitions + framing rules.
   archetypes:
     - name: "MLOps Engineer"
-      level: "Senior/Staff"
+      level: "Senior"
       fit: "primary"
     - name: "NLP Engineer"
-      level: "Senior/Staff"
+      level: "Senior"
       fit: "primary"
     - name: "Computer Vision Engineer"
-      level: "Senior/Staff"
+      level: "Senior"
       fit: "primary"
     - name: "Generative AI / LLM Engineer"
-      level: "Senior/Staff"
+      level: "Senior"
       fit: "primary"
     - name: "Applied ML Engineer (generalist)"
-      level: "Senior/Staff"
+      level: "Senior"
       fit: "primary"
     - name: "Data Scientist"
       level: "Senior"
@@ -109,7 +108,7 @@ experience:
   years_total: 7
   most_recent_role: "Machine Learning Engineer at PNC Bank (Aug 2020 – Apr 2026)"
   current_status: "Open to work — actively job searching, no current employer"
-  seniority_targeting: "Senior / Staff IC, open to Lead-IC hybrid"
+  seniority_targeting: "Senior IC is the ceiling. Open to Lead-IC hybrid and to mid-level / Engineer-II roles at strong-fit companies. Staff/Principal/Distinguished are too senior for current profile (7 yrs experience). Internships and explicit new-grad pipelines excluded."
 
 cv:
   output_format: "html"                 # html (default) or latex

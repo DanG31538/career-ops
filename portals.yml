@@ -156,18 +156,24 @@ title_filter:
     - "Research Scientist"     # capped at 3.0/5 by modes/_profile.md Override 1
     - "Applied Scientist"      # also capped at 3.0/5
   negative:
-    # -- Seniority floor (no junior / entry-level) --
-    - "Junior"
-    - "Jr."
+    # -- Hard seniority floor (true entry-level only) --
+    # Updated 2026-05-31: opened up Junior/Associate/Engineer-I tier per Dan's
+    # expanded search. The 4.0/5 eval threshold + Override 1/2/3 caps in
+    # modes/_profile.md are now the primary calibration; the scan-time filter
+    # only blocks postings that are categorically not for someone with 7yr
+    # experience (internships and explicit new-grad pipelines).
+    #
+    # SAME-ROLE / MULTI-LEVEL CAVEAT:
+    # Big orgs (Stripe, Cohere, Anthropic, etc.) often post the SAME team's slot
+    # at multiple seniority levels (ML Engineer + Senior ML Engineer + Staff ML
+    # Engineer). Without deduplication, scan.mjs will collect all three, then
+    # process-pipeline will burn LLM tokens producing 3 near-identical evals,
+    # then the bot will post each one separately. See task #15 (Cluster same-
+    # role multi-level postings) for the implementation plan. Until that lands,
+    # expect occasional sibling-posting noise in #job-alerts.
     - "Intern"
     - "Internship"
-    - "Engineer I"
-    - "Engineer 1"
-    - "Associate"
     - "Apprentice"
-    - "Graduate"
-    - "Entry Level"
-    - "Entry-Level"
     - "New Grad"
     # -- Wrong function --
     - "Recruiter"
@@ -195,10 +201,11 @@ title_filter:
     - "Web3"
     - "Crypto"
   seniority_boost:
-    # Soft preference, not required
+    # Soft preference, not required. Updated 2026-05-31: dropped Staff and
+    # Principal — those are above Dan's current target ceiling (Senior IC).
+    # Lead kept because Lead-IC hybrid is fine; Lead-with-direct-reports
+    # is handled by the Org-Leadership Cap in modes/_profile.md Override 3.
     - "Senior"
-    - "Staff"
-    - "Principal"
     - "Lead"
 
 # ============================================================

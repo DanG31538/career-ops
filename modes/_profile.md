@@ -81,9 +81,60 @@ Apply if Override 1 didn't fire, in addition to Override 1 if both apply.
 - **Cap 3.5/5** if publication record / first-author papers required
 - **Cap 3.5/5** if novel theoretical contributions or new algorithm invention required
 - **Cap 3.5/5** if graduate-level theoretical math required (measure theory, advanced optimization theory, causal inference at PhD depth, Bayesian deep learning theory)
+- **Cap 3.5/5** if title contains `Staff`, `Principal`, or `Distinguished` (Engineer-suffixed; Scientist-suffixed is already capped at 3.0 by Override 1). These titles are above the current target ceiling of Senior IC. Cap may be lifted to 4.0 only if the JD body explicitly says Staff is used loosely (e.g. "we use Staff to mean 5-7yr+ ICs", "Staff here is what most companies call Senior", "no requirement for prior Staff-level scope or formal Staff-Engineer experience"). Cite the exact body text in Block C.
 - **Cap 2.5/5** if academic / faculty / postdoc / teaching-heavy / tenure-track
 
-### Override 3: Closed Posting Policy
+### Override 3: Org-Leadership Title Cap
+
+Dan has **coordinated** large cross-functional teams (60-person team at PNC)
+but has **never held a Manager / Director / VP / Head title** and does not
+have direct-report management experience. Roles whose titles signal org-level
+leadership (managing managers, owning P&L, hiring/firing authority) are
+mismatched regardless of the technical-skill overlap.
+
+**Step 1 — Parse the title for org-leadership signals.** Org-leadership words:
+`Head`, `Vice President`, `VP`, `Director`, `Chief`, `CTO`, `CIO`, `CDO`,
+`Chief [X] Officer`, `Manager`, `Engineering Manager`, `EM`.
+
+**Step 2 — Apply cap.** If the title contains any org-leadership word
+indicating people management or org-level scope, **cap overall score at 3.0/5**.
+This applies regardless of how well skills/domain match — title-based caps
+trump archetype-based scoring.
+
+**Examples that MUST be capped at 3.0:**
+
+| Title | Cap? | Reason |
+|---|---|---|
+| Head of Machine Learning | **CAPPED at 3.0** | "Head of" = org leader |
+| VP of Engineering | **CAPPED at 3.0** | "VP" = exec |
+| Director of Data Science | **CAPPED at 3.0** | "Director of" = org leader |
+| Chief AI Officer | **CAPPED at 3.0** | "Chief X Officer" = exec |
+| Engineering Manager | **CAPPED at 3.0** | "Manager" = people mgmt |
+| Senior ML Engineer | NOT capped | IC track |
+| Staff ML Engineer | NOT capped | IC track (high level, no people mgmt) |
+| Lead Machine Learning Engineer | NOT capped (default) | "Lead" is usually IC; only cap if JD body explicitly mentions direct reports or hiring authority |
+| Principal ML Engineer | NOT capped | IC track (Override 1 may still apply if "Scientist" is also in title) |
+| Tech Lead | NOT capped | IC senior |
+
+**Step 3 — Cap can be lifted ONLY by explicit JD body text** confirming the
+role is IC-track despite the title:
+- "No direct reports"
+- "IC track" / "Individual contributor role"
+- "Player-coach role with light mentoring only"
+- "Hands-on technical role; the [Head/Director/VP] title reflects org scope
+  but not people management"
+
+If body text confirms IC, lift cap to a maximum of 4.0. The title alone NEVER
+lifts the cap — vague leadership JDs default to capped.
+
+**MANDATORY: Block C must explicitly document the cap decision** with one of:
+- "**Org-Leadership Cap Analysis:** CAPPED at 3.0 — title contains [org-leadership word]."
+- "**Org-Leadership Cap Analysis:** NOT capped — title is IC-track."
+- "**Org-Leadership Cap Analysis:** Cap lifted to 4.0 — JD body says '[exact text]'."
+
+Skipping the Org-Leadership Cap Analysis line in Block C is a calibration failure.
+
+### Override 4: Closed Posting Policy
 
 **Today's date is given in the operating-rules section of the system prompt.**
 Compare it against EVERY date appearing in the JD that relates to applications,
@@ -122,7 +173,7 @@ submissions, or deadlines.
 **If no closure signal AND no application-related date in JD:** default to
 "open" — note "no explicit deadline visible in JD text" in Block G.
 
-### Override 4: Hard SKIP Rules
+### Override 5: Hard SKIP Rules
 
 These produce an effective SKIP regardless of score:
 
@@ -141,7 +192,9 @@ ML-focused: Machine Learning Engineer, MLOps Engineer, NLP Engineer, Computer Vi
 Engineer, Generative AI / LLM Engineer, Data Scientist, Edge AI / Robotics ML,
 Research Engineer.
 
-Strong preference for IC (Senior / Staff); open to lead-IC hybrid roles.
+Senior IC is the ceiling. Open to Lead-IC hybrid and to mid-level / Engineer-II
+roles at strong-fit companies. Staff / Principal / Distinguished titles are
+above the current target band (7 yrs experience) — see Override 2 for cap.
 
 ## Archetypes — ML-focused (extend modes/_shared.md)
 
@@ -220,7 +273,7 @@ Pittsburgh in person."
 - Score Block A (location dimension) full credit (5.0) for full remote
 - Score 4.0 for hybrid/on-site in NYC metro or Pittsburgh
 - Score 1.0–1.5 for anything else — this is an effective SKIP signal
-- **Force SKIP in Block F if JD requires security clearance** (see Override 4)
+- **Force SKIP in Block F if JD requires security clearance** (see Override 5)
 
 ## Comp Targets
 

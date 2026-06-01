@@ -22,7 +22,7 @@
  *   node draft-application.mjs --file jds/test-1.txt --company Acme
  */
 
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -85,6 +85,9 @@ if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     node draft-application.mjs --file jds/test-1.txt \\
       --personal "I grew up watching Paramount films; ML for media I love is rare"
     node draft-application.mjs --file jds/test-1.txt --questions-file ./q.txt
+    node draft-application.mjs --file jds/test-1.txt \\
+      --revise-from output/application-acme-2026-05-31.md \\
+      --feedback "Shorten ¶2 to two sentences; drop the security scanning line"
 
   OPTIONS
     --file <path>             Read JD from a file
@@ -95,6 +98,15 @@ if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     --personal-file <path>    Read personal context from a file
     --questions "..."         Inline application questions (newline-separated)
     --questions-file <path>   Read questions from a file
+    --revise-from <path>      Path to a previous draft (.md) to revise. When set,
+                              the script enters REVISION MODE: instead of drafting
+                              from scratch, it applies the --feedback string to
+                              the existing draft, preserving everything else.
+                              Output is written to <input>-rN.md where N auto-
+                              increments based on existing revisions.
+    --feedback "..."          Revision instructions (only meaningful with
+                              --revise-from). Plain-English, e.g. "shorten ¶2",
+                              "drop the security sentence", "make ¶1 less formal".
     --model <name>            Override LLM_MODEL
     --max-tokens <n>          Output token budget (default 4096)
     --company <name>          Override company name (used for filename)
@@ -117,6 +129,8 @@ let modelOverride = null;
 let maxTokens = parseInt(process.env.LLM_MAX_TOKENS || '4096', 10);
 let companyOverride = null;
 let outputOverride = null;
+let reviseFromPath = null;
+let feedbackText = '';
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -136,6 +150,11 @@ for (let i = 0; i < args.length; i++) {
     const fp = args[++i];
     if (!existsSync(fp)) { console.error(`❌  Personal context file not found: ${fp}`); process.exit(1); }
     personalText = readFileSync(fp, 'utf-8').trim();
+  } else if (a === '--revise-from' && args[i + 1]) {
+    reviseFromPath = args[++i];
+    if (!existsSync(reviseFromPath)) { console.error(`❌  Revise-from file not found: ${reviseFromPath}`); process.exit(1); }
+  } else if (a === '--feedback' && args[i + 1]) {
+    feedbackText = args[++i];
   } else if (a === '--model' && args[i + 1]) {
     modelOverride = args[++i];
   } else if (a === '--max-tokens' && args[i + 1]) {
@@ -148,6 +167,12 @@ for (let i = 0; i < args.length; i++) {
   } else if (!a.startsWith('--')) {
     jdText += (jdText ? '\n' : '') + a;
   }
+}
+
+const isRevisionMode = Boolean(reviseFromPath);
+if (isRevisionMode && !feedbackText.trim()) {
+  console.error('❌  --revise-from requires --feedback "..." (instructions on what to change).');
+  process.exit(1);
 }
 
 if (!jdText) { console.error('❌  No JD provided. Run with --help for usage.'); process.exit(1); }
@@ -588,6 +613,42 @@ if (hasQuestions) {
   userMessage += `\n\n═══════════════════════════════════════\n\nAPPLICATION QUESTIONS:\n\n${questionsText}`;
 }
 
+// In revision mode: append the existing draft and the user's feedback to the
+// user message. The system prompt picks up the revision block from
+// `revisionAddendum` below — see callOnce().
+let previousDraftText = '';
+if (isRevisionMode) {
+  previousDraftText = readFileSync(reviseFromPath, 'utf-8');
+  userMessage +=
+    `\n\n═══════════════════════════════════════\n\n` +
+    `EXISTING DRAFT (the cover letter the candidate previously received):\n\n${previousDraftText}` +
+    `\n\n═══════════════════════════════════════\n\n` +
+    `REVISION REQUEST FROM CANDIDATE:\n\n${feedbackText}`;
+}
+
+const revisionAddendum = isRevisionMode ? `
+═══════════════════════════════════════════════════════
+REVISION MODE — APPLIES TO THIS REQUEST
+═══════════════════════════════════════════════════════
+The candidate previously received the cover letter shown in EXISTING DRAFT
+above and has provided a REVISION REQUEST. Your task on THIS turn is:
+
+1. Apply the requested change as faithfully as possible.
+2. Preserve everything else — voice, register, paragraph structure,
+   specific phrasings the candidate has chosen — unchanged.
+3. Do NOT take the request as license to rewrite the entire letter.
+   If the request is "shorten ¶2", touch ¶2 only; leave ¶1 and ¶3 byte-
+   for-byte the same. If the request is "drop the security sentence",
+   remove only that sentence; the surrounding paragraph stays.
+4. Truthfulness rules still apply — every claim still has to trace to cv.md.
+5. The candidate may iterate multiple times. Each iteration is incremental.
+   Resist the urge to "improve" things the candidate didn't ask about.
+
+The output JSON shape is the same as a normal draft (company, role_title,
+archetype, cover_letter[, answers]). Just return the revised letter as
+cover_letter.
+` : '';
+
 // ---------------------------------------------------------------------------
 // Call LLM
 // ---------------------------------------------------------------------------
@@ -596,14 +657,20 @@ console.log(`🤖  Calling ${providerConfig.provider} (${modelName})...`);
 const client = new OpenAI({ apiKey: providerConfig.apiKey, baseURL: providerConfig.baseUrl });
 
 async function callOnce(extra = '') {
-  const sys = extra ? systemPrompt + '\n\n' + extra : systemPrompt;
+  // System prompt = base rules + (revision addendum if applicable) + (retry hint if set)
+  let sys = systemPrompt;
+  if (revisionAddendum) sys += '\n\n' + revisionAddendum;
+  if (extra)            sys += '\n\n' + extra;
+  // In revision mode, drop temperature a touch — we want minimal drift on
+  // unchanged paragraphs.
+  const temperature = isRevisionMode ? 0.3 : 0.5;
   const completion = await client.chat.completions.create({
     model: modelName,
     messages: [
       { role: 'system', content: sys },
       { role: 'user',   content: userMessage },
     ],
-    temperature: 0.5,  // a touch higher than tailor — cover letters benefit from voice
+    temperature,
     max_tokens: maxTokens,
     response_format: { type: 'json_object' },
   });
@@ -656,7 +723,30 @@ const companySlug = slugify(company);
 
 mkdirSync(PATHS.output, { recursive: true });
 
-const outPath = outputOverride || join(PATHS.output, `application-${companySlug}-${today}.md`);
+// Output path:
+//   normal mode:   output/application-{co}-{date}.md (overwrites if present)
+//   revision mode: output/application-{co}-{date}-r{N}.md, N auto-incremented
+//                  by scanning existing -rN files for the same base. Each
+//                  revision is kept as a separate file so the user can scroll
+//                  back through the iteration history without git.
+function resolveOutPath() {
+  if (outputOverride) return outputOverride;
+  const base = `application-${companySlug}-${today}`;
+  if (!isRevisionMode) return join(PATHS.output, `${base}.md`);
+
+  let maxN = 0;
+  try {
+    const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`^${escaped}-r(\\d+)\\.md$`);
+    for (const f of readdirSync(PATHS.output)) {
+      const m = f.match(re);
+      if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+    }
+  } catch { /* output dir may not exist yet */ }
+  return join(PATHS.output, `${base}-r${maxN + 1}.md`);
+}
+
+const outPath = resolveOutPath();
 
 const headerBlock = `# Application Draft — ${company}${result.role_title ? ` · ${result.role_title}` : ''}
 
