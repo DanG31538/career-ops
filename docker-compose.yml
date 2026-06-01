@@ -50,5 +50,14 @@ services:
       - ./modes:/app/modes
       - ./portals.yml:/app/portals.yml
 
+      # -- Obsidian vault (Phase 6 — application tracking) --
+      # Bot writes .md notes here on ✅/❌ decisions. Syncthing on the host
+      # replicates this folder to Dan's desktop/laptop. The container only
+      # needs write access to the applications/ subdir; broader vault access
+      # is fine since Syncthing handles two-way sync.
+      # Comment out if OBSIDIAN_VAULT_PATH is unset in .env (no-op anyway,
+      # but cleaner not to mount a directory we'll never read).
+      - ~/obsidian-vault/job-search:/app/obsidian-vault/job-search
+
       # -- Secrets (read-only — container shouldn't be able to write to .env) --
       - ./.env:/app/.env:ro

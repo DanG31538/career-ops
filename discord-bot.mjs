@@ -48,6 +48,7 @@ import {
 import { postEval } from './lib/post-eval.mjs';
 import { buildDigest } from './lib/digest.mjs';
 import { processOneUrl } from './lib/process-one.mjs';
+import { writeNoteForDecision } from './lib/obsidian-note.mjs';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -395,8 +396,45 @@ async function handleRejectReaction({ message, reportFile }) {
   markDecision(state, reportFile, 'discarded');
   persist();
   logInfo(`❌ on ${reportFile}: marked discarded.`);
+  syncObsidianForDecision(reportFile, 'discarded');
   try { await message.react('👋'); }
   catch (err) { logWarn(`Failed to ack ❌ reaction: ${err.message}`); }
+}
+
+/**
+ * Best-effort Obsidian note write/update. Called after markDecision flips a
+ * report's decision. Never throws — logs the outcome and moves on. The bot's
+ * decision flow must not depend on Obsidian I/O succeeding (vault may be
+ * unmounted, disk full, permissions wrong, etc.).
+ */
+function syncObsidianForDecision(reportFile, decision) {
+  try {
+    const fullPath = join(REPORTS_DIR, reportFile);
+    const report = parseReport(fullPath);
+    if (!report) {
+      logWarn(`Obsidian sync skipped for ${reportFile}: report unparseable`);
+      return;
+    }
+    const decisionDate = (state.posted[reportFile]?.decidedAt || new Date().toISOString()).slice(0, 10);
+    const result = writeNoteForDecision({
+      report,
+      posted: state.posted[reportFile],
+      decision,
+      decisionDate,
+    });
+    if (result.written === 'created' || result.written === 'appended') {
+      logInfo(`Obsidian note ${result.written}: ${result.path}`);
+    } else if (result.written === 'skipped') {
+      // Only log skip when reason is interesting (not the common "vault unset" no-op)
+      if (result.reason !== 'OBSIDIAN_VAULT_PATH unset') {
+        logInfo(`Obsidian sync skipped for ${reportFile}: ${result.reason}`);
+      }
+    } else if (result.written === 'failed') {
+      logError(`Obsidian sync failed for ${reportFile}: ${result.reason}`);
+    }
+  } catch (err) {
+    logError(`Obsidian sync threw for ${reportFile}: ${err.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -458,6 +496,7 @@ async function handleThreadPersonalReply(msg, pending) {
   // to apply; only the cover-letter generation differs.
   markDecision(state, pending.reportFile, 'applied');
   persist();
+  syncObsidianForDecision(pending.reportFile, 'applied');
 
   if (noDraft) {
     await msg.channel.send(
