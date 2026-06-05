@@ -25,6 +25,13 @@ REPO="/home/jobops/career-ops"
 LOG="${REPO}/data/cron.log"
 SERVICE="career-ops"
 
+# Cap how many URLs one cron run will evaluate. Without this, a fresh scan
+# that surfaces 100+ new URLs (post-junior-tier-filter changes) would burn
+# ~50–90 min of runtime and ~$1 in LLM cost in a single run. With cron firing
+# 3×/day at this cap, the system steadily drains backlog without spikes.
+# Override per-run by editing this value (no rebuild needed — host file).
+PROCESS_LIMIT=25
+
 cd "${REPO}" || { echo "[$(date -Iseconds)] FATAL: cannot cd ${REPO}" >> "${LOG}"; exit 1; }
 
 # Banner so log scrolling is parseable
@@ -37,19 +44,23 @@ cd "${REPO}" || { echo "[$(date -Iseconds)] FATAL: cannot cd ${REPO}" >> "${LOG}
 
 # Step 1 — scan
 echo "[$(date -Iseconds)] scan.mjs starting" >> "${LOG}"
-if docker compose exec -T "${SERVICE}" node scan.mjs >> "${LOG}" 2>&1; then
+docker compose exec -T "${SERVICE}" node scan.mjs >> "${LOG}" 2>&1
+rc=$?
+if [ "${rc}" -eq 0 ]; then
   echo "[$(date -Iseconds)] scan.mjs OK" >> "${LOG}"
 else
-  echo "[$(date -Iseconds)] scan.mjs FAILED (exit $?), skipping process-pipeline" >> "${LOG}"
+  echo "[$(date -Iseconds)] scan.mjs FAILED (exit ${rc}), skipping process-pipeline" >> "${LOG}"
   exit 1
 fi
 
 # Step 2 — process-pipeline with auto-tailor for any newly-discovered URLs
 echo "[$(date -Iseconds)] process-pipeline.mjs starting" >> "${LOG}"
-if docker compose exec -T "${SERVICE}" node process-pipeline.mjs --auto-tailor 4.0 >> "${LOG}" 2>&1; then
+docker compose exec -T "${SERVICE}" node process-pipeline.mjs --limit "${PROCESS_LIMIT}" --auto-tailor 4.0 >> "${LOG}" 2>&1
+rc=$?
+if [ "${rc}" -eq 0 ]; then
   echo "[$(date -Iseconds)] process-pipeline.mjs OK" >> "${LOG}"
 else
-  echo "[$(date -Iseconds)] process-pipeline.mjs FAILED (exit $?)" >> "${LOG}"
+  echo "[$(date -Iseconds)] process-pipeline.mjs FAILED (exit ${rc})" >> "${LOG}"
   exit 1
 fi
 
